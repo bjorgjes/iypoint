@@ -27,7 +27,7 @@ Allocate(s0i(nlines,12))
 
 pw1 = 0.001
 bryter = 5
-call newton(1,2,nlines,eul,bryter,F0i,Fp0i,S0i,pw1)   
+call newton(1,5,nlines,eul,bryter,F0i,Fp0i,S0i,pw1)   
 F0 = F0i
 S0 = S0i
 Fp0 = Fp0i
