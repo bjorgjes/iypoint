@@ -138,6 +138,7 @@ sigma(1) = 1
 do 
     ! write out the jacobian
     call taylor(La,Tag,nlines,eul,bryter,F0i,Fp0i,S0i,dt,pw,Dp)
+ 
     do i = 1,4
         sigma(i) = Tag(pos1(i),pos2(i))
         
@@ -212,6 +213,7 @@ if (bry == 5) then
     if (bryter == 4) then 
 
     end if
+
 end subroutine newton
 
 subroutine centraldiff(La,jacobidel,epsilon, pos1l, pos2l,pos1T,pos2T,nlines,eul,bryter,F0i,Fp0i,s0i,dt,pw,Dp)
@@ -259,7 +261,7 @@ subroutine taylor(La,Tag,nlines,eul,bryter,F0i,Fp0i,S0i,dt,pw,Dp)
                         id, Schmid,TS,Tint, CS, Tst, Fpint ,Rn,  Rtest,Dpc,Dp
     real(8) , dimension(3,3), intent(in)  :: La
     real(8) , dimension(3,3), intent(out)  :: Tag
-    real(8) , dimension(3,3,nlines) :: R, F0, Fp0,Fp0i,Fp0int,F0i,F0int, Fe0,Fe0int, Tagc, Tagcint, Lc
+    real(8) , dimension(3,3,nlines) :: R, F0, Fp0,Fp0i,Fp0int,F0i,F0int, Tagc, Tagcint, Lc
     real(8),  dimension(nlines,12) :: s0,S0i,S0in
     real(8) , dimension(6,12) :: slip
     real(8) , dimension(6,6) :: Cel
@@ -337,8 +339,7 @@ subroutine taylor(La,Tag,nlines,eul,bryter,F0i,Fp0i,S0i,dt,pw,Dp)
     ! Calculate rotation matrix
     call rotmat(phi1,Phi,phi2,R(1:3,1:3,o))
     
-    ! Rotate velocity gradient to crystal coordinate 
-    Lc(1:3,1:3,o) = matmul(R(1:3,1:3,o),matmul(La,transpose(R(1:3,1:3,o))))
+   
     end do initalize
     
 else if (bryter == 2 .or. bryter == 4 .or. bryter == 6) then
@@ -351,8 +352,6 @@ else if (bryter == 2 .or. bryter == 4 .or. bryter == 6) then
     ! Calculate rotation matrix
     call rotmat(phi1,Phi,phi2,R(1:3,1:3,o))
     
-    ! Rotate velocity gradient to crystal coordinate 
-    Lc(1:3,1:3,o) = matmul(R(1:3,1:3,o),matmul(La,transpose(R(1:3,1:3,o))))
     end do initalize2
     
     
@@ -366,8 +365,6 @@ else if (bryter == 3 ) then
     ! Calculate rotation matrix
     call rotmat(phi1,Phi,phi2,R(1:3,1:3,o))
     
-    ! Rotate velocity gradient to crystal coordinate 
-    Lc(1:3,1:3,o) = matmul(R(1:3,1:3,o),matmul(La,transpose(R(1:3,1:3,o))))
     
     end do initalize3
     write(*,*) bryter
@@ -383,13 +380,217 @@ gammaskrank = 0.00001
    
 
     iter: do while (switch < 500000)     
-    Tag = 0
+
+       call timestep(Tag, Dp, F1, La, gammatot, gammatoti , nlines, Fp0, Fp0int, F0, F0int,R,S0in,s0,dt0, slip , Cel,x)
+   !write(*,*) Tag
+    if (mod(switch,5000-1)==0) then 
+        !   write(8,*) phi1, Phi, phi2
+       end if 
+    call eqvstr(Tag,sigmaeq)
+    !write(10,*) sigmaeq
+
+    if (bryter == 1 .or. bryter == 5) then
+        if (gammatoti > pw .and. abs((gammatoti - pw)/pw) > 0.000000001) then
+            if (pw == 0) then
+                dt0 = dt0/2
+            else
+            dt0 = (pw-gammatot)*dt0/(gammatoti-gammatot) 
+            end if
+            switch = switch +1
+            !write(*,*) gammatoti
+            secit = secit +1
+            if (secit > 15) then 
+                exit iter
+            end if 
+            cycle iter
+        end if 
+        
+        
+        F0 = F0int
+        Fp0 = Fp0int
+        Tagc = Tagcint
+        s0 = s0in
+        gammatot = gammatoti 
+
+        if (bryter == 5) then
+            if (gammatot > gammaskrank) then
+                call contract2(La,Dp,dot)
+                dot = dot/norm2(La)/norm2(Dp)
+            write(11,*) Tag(1,3),Tag(1,2), Tag(2,3), Tag(3,3) , dot , acos(dot), gammatot
+            
+            gammaskrank = gammaskrank + 0.0001
+            end if
+        end if 
+
+        if (abs((gammatot -pw)/pw)<= 0.000000001) then
+            Fp0i = Fp0
+            F0i  = F0
+            S0i = S0   
+            exit iter
+        end if
     
+    else if (bryter == 2 .or. bryter == 6) then
+        
+        if (pw /= 0) then
+        if (gammatoti > pw .and. abs((gammatoti - pw)/pw) > 0.000000001) then
+            if (pw == 0) then
+                dt0 = dt0/2
+            else
+            dt0 = (pw-gammatot)*dt0/(gammatoti-gammatot) 
+            end if
+            switch = switch +1
+            secit = secit +1
+            if (secit > 15) then 
+                exit iter
+            end if 
+            cycle iter
+        end if 
+        end if
+
+        if (pw == 0) then
+            if (gammatoti > pw .and. abs(gammatoti) > 0.000000001) then
+            dt0 = dt0/2
+            !dt0 = (pw-gammatot)*dt0/(gammatoti-gammatot) 
+            switch = switch +1
+            secit = secit +1
+            if (secit > 30) then 
+                exit iter
+            end if 
+            cycle iter
+            end if
+        end if
+
+        F0 = F0int
+        Fp0 = Fp0int
+        Tagc = Tagcint
+        s0 = s0in
+        gammatot = gammatoti 
+
+        if (bryter == 6) then
+            if (gammatot > gammaskrank) then
+                call contract2(La,Dp,dot)
+                dot = dot/norm2(La)/norm2(Dp)
+            write(11,*) Tag(1,3),Tag(1,2), Tag(2,3), Tag(3,3) , dot , acos(dot), gammatot
+            gammaskrank = gammaskrank + 0.00001
+            end if
+        end if 
+        
+        if (pw /= 0 .and. abs((gammatot -pw)/pw)<= 0.000000001) then
+            exit iter
+        else if (pw == 0 .and. gammatot <= 0.000000001 .and. gammatot > 0) then
+           ! write(*,*) 'check'
+            exit iter
+
+        end if
+    else if (bryter == 3) then
+        
+        F0 = F0int
+        Fp0 = Fp0int
+        Tagc = Tagcint
+        s0 = s0in
+        gammatot = gammatoti 
+    Fp0i = Fp0
+    F0i  = F0
+    S0i = S0   
+   
+
+    bakit = bakit+1  
+    write(*,*) bakit 
+    write(*,*) x
+    if (bakit == 10) then
+        !write(*,*) gammatot
+        write(*,*) bakit
+        exit iter
+    end if 
+else if (bryter == 4) then 
+    if (gammatoti > pw .and. abs((gammatoti - pw)/pw) > 0.000000001) then
+        if (pw == 0) then
+            dt0 = dt0/2
+        else
+        dt0 = (pw-gammatot)*dt0/(gammatoti-gammatot) 
+        end if
+        switch = switch +1
+        secit = secit +1
+        if (secit > 15) then 
+            exit iter
+        end if 
+        cycle iter
+    end if 
+    
+    
+    F0 = F0int
+    Fp0 = Fp0int
+    Tagc = Tagcint
+    s0 = s0in
+    gammatot = gammatoti 
+
+    Fp0i = Fp0
+    F0i  = F0
+    S0i = S0   
+
+    
+
+    if (abs((gammatot -pw)/pw)<= 0.000000001) then
+        exit iter
+    end if
+
+    end if
+
+
+    switch = switch +1
+    end do iter
+    !write(7,*) PA
+    !write(7,*) phi1, Phi, phi2 
+    !end do !l 
+    !end do !p
+    !close(9,STATUS='keep')
+    !close(7,status='keep')
+    !close(8,status='keep')
+    return
+    end subroutine taylor
+
+
+
+
+
+subroutine timestep(Tag, Dp, F1, La, gammatot, gammatoti , nlines, Fp0, Fp0int, F0, F0int,R,S0in,s0,dt0, slip,Cel,x )
+    
+      !use setparam
+    implicit none
+    
+     
+    !Declear all variables
+ 
+    real(8) :: phi1, Phi, phi2, det, dt,dt0, cons, gammatot,gammatoti
+    real(8) , dimension(3,3)  :: F1, Fp1, Fp1inv, Fe1, Fetr,Fp0inv, Ctr,T1,Ttr,Etr , & 
+                        id, Schmid,TS,Tint, CS, Tst, Fpint ,Rn,  Rtest,Dpc,Dp
+    real(8) , dimension(3,3), intent(in)  :: La
+    real(8) , dimension(3,3), intent(out)  :: Tag
+    real(8) , dimension(3,3,nlines) :: R, F0, Fp0,Fp0int,F0int, Tagcint, Lc
+    real(8),  dimension(nlines,12) :: s0,S0in
+    real(8) , dimension(6,12) :: slip
+    real(8) , dimension(6,6) :: Cel
+    real(8) , dimension(12) :: tautr,s1,tau, consis, s0int
+    real(8) , dimension(3) :: m,n
+    logical, dimension(12) :: PA, Active
+    logical :: consise
+    integer :: i,countera,ij, switch , numact, o,nlines,j,secit
+    double precision, dimension(12):: x
+ 
+    !Create identity matrix
+    id = 0
+    forall(i = 1:3) id(i,i) = 1
+    
+    
+    Tag = 0
+  
     
     Dp = 0
     gammatoti = gammatot
     grains: do j = 1,nlines   !Iterate over all grains                                                                                                                                                                                   
     !integrate velocity gradient to form deformation gradient
+     ! Rotate velocity gradient to crystal coordinate 
+    Lc(1:3,1:3,j) = matmul(R(1:3,1:3,j),matmul(La,transpose(R(1:3,1:3,j))))
     Dpc = 0
     
     F1 = matmul(F0(1:3,1:3,j),(id + Lc(1:3,1:3,j)*dt0))
@@ -521,7 +722,7 @@ gammaskrank = 0.00001
     end if 
     
     if (cons > 0.00001) then
-        write(*,*) 'timestep to large, consistency not achieved'
+        write(*,*) 'timestep to large, consistency not achieved 1'
         write(*,*) consis
         write(*,*) x
         dt0 = dt0/10
@@ -551,7 +752,7 @@ gammaskrank = 0.00001
         countera = countera+1
         end if 
     end do
-    !Dpc =  matmul(transpose(Rtest),matmul(Dpc,Rtest))
+    Dpc =  matmul(transpose(Rtest),matmul(Dpc,Rtest))
     Dp = Dp + matmul(transpose(R(1:3,1:3,j)),matmul(Dpc,R(1:3,1:3,j)))
     
     gammatoti = gammatoti + sum(x)/nlines
@@ -574,187 +775,10 @@ gammaskrank = 0.00001
     !write(7,*)
     
     
-    if (mod(switch,5000-1)==0) then 
-     !   write(8,*) phi1, Phi, phi2
-    end if 
     
-    end do grains 
-    
-    call eqvstr(Tag,sigmaeq)
-    !write(10,*) sigmaeq
+end do grains 
 
-    if (bryter == 1 .or. bryter == 5) then
-        if (gammatoti > pw .and. abs((gammatoti - pw)/pw) > 0.000000001) then
-            if (pw == 0) then
-                dt0 = dt0/2
-            else
-            dt0 = (pw-gammatot)*dt0/(gammatoti-gammatot) 
-            end if
-            switch = switch +1
-            !write(*,*) gammatoti
-            secit = secit +1
-            if (secit > 15) then 
-                exit iter
-            end if 
-            cycle iter
-        end if 
-        
-        
-        F0 = F0int
-        Fe0 = Fe0int
-        Fp0 = Fp0int
-        Tagc = Tagcint
-        s0 = s0in
-        gammatot = gammatoti 
-
-        if (bryter == 5) then
-            if (gammatot > gammaskrank) then
-                call contract2(La,Dp,dot)
-                dot = dot/norm2(La)/norm2(Dp)
-            write(11,*) Tag(1,3),Tag(1,2), Tag(2,3), Tag(3,3) , dot , acos(dot), gammatot
-            
-            gammaskrank = gammaskrank + 0.0001
-            end if
-        end if 
-
-        if (abs((gammatot -pw)/pw)<= 0.000000001) then
-            Fp0i = Fp0
-            F0i  = F0
-            S0i = S0   
-            exit iter
-        end if
-    
-    else if (bryter == 2 .or. bryter == 6) then
-        
-        if (pw /= 0) then
-        if (gammatoti > pw .and. abs((gammatoti - pw)/pw) > 0.000000001) then
-            if (pw == 0) then
-                dt0 = dt0/2
-            else
-            dt0 = (pw-gammatot)*dt0/(gammatoti-gammatot) 
-            end if
-            switch = switch +1
-            secit = secit +1
-            if (secit > 15) then 
-                exit iter
-            end if 
-            cycle iter
-        end if 
-        end if
-
-        if (pw == 0) then
-            if (gammatoti > pw .and. abs(gammatoti) > 0.000000001) then
-            dt0 = dt0/2
-            !dt0 = (pw-gammatot)*dt0/(gammatoti-gammatot) 
-            switch = switch +1
-            secit = secit +1
-            if (secit > 30) then 
-                exit iter
-            end if 
-            cycle iter
-            end if
-        end if
-
-        F0 = F0int
-        Fe0 = Fe0int
-        Fp0 = Fp0int
-        Tagc = Tagcint
-        s0 = s0in
-        gammatot = gammatoti 
-
-        if (bryter == 6) then
-            if (gammatot > gammaskrank) then
-                call contract2(La,Dp,dot)
-                dot = dot/norm2(La)/norm2(Dp)
-            write(11,*) Tag(1,3),Tag(1,2), Tag(2,3), Tag(3,3) , dot , acos(dot), gammatot
-            gammaskrank = gammaskrank + 0.00001
-            end if
-        end if 
-        
-        if (pw /= 0 .and. abs((gammatot -pw)/pw)<= 0.000000001) then
-            exit iter
-        else if (pw == 0 .and. gammatot <= 0.000000001 .and. gammatot > 0) then
-           ! write(*,*) 'check'
-            exit iter
-
-        end if
-    else if (bryter == 3) then
-        
-        F0 = F0int
-        Fe0 = Fe0int
-        Fp0 = Fp0int
-        Tagc = Tagcint
-        s0 = s0in
-        gammatot = gammatoti 
-    Fp0i = Fp0
-    F0i  = F0
-    S0i = S0   
-   
-
-    bakit = bakit+1  
-    write(*,*) bakit 
-    write(*,*) x
-    if (bakit == 10) then
-        !write(*,*) gammatot
-        write(*,*) bakit
-        exit iter
-    end if 
-else if (bryter == 4) then 
-    if (gammatoti > pw .and. abs((gammatoti - pw)/pw) > 0.000000001) then
-        if (pw == 0) then
-            dt0 = dt0/2
-        else
-        dt0 = (pw-gammatot)*dt0/(gammatoti-gammatot) 
-        end if
-        switch = switch +1
-        secit = secit +1
-        if (secit > 15) then 
-            exit iter
-        end if 
-        cycle iter
-    end if 
-    
-    
-    F0 = F0int
-    Fe0 = Fe0int
-    Fp0 = Fp0int
-    Tagc = Tagcint
-    s0 = s0in
-    gammatot = gammatoti 
-
-    Fp0i = Fp0
-    F0i  = F0
-    S0i = S0   
-
-    
-
-    if (abs((gammatot -pw)/pw)<= 0.000000001) then
-        exit iter
-    end if
-
-    end if
-
-
-    switch = switch +1
-    end do iter
-    !write(7,*) PA
-    !write(7,*) phi1, Phi, phi2 
-    !end do !l 
-    !end do !p
-    !close(9,STATUS='keep')
-    !close(7,status='keep')
-    !close(8,status='keep')
-    return
-    end subroutine taylor
-
-
-
-
-
-
-
-
-
+end subroutine timestep
 
 
 
