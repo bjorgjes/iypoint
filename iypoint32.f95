@@ -25,12 +25,25 @@ write(*,*)
 Allocate(F0i(3,3,nlines),Fp0i(3,3,nlines))
 Allocate(s0i(nlines,12))
 
-pw1 = 0.001
-bryter = 5
-call newton(1,5,nlines,eul,bryter,F0i,Fp0i,S0i,pw1)   
-F0 = F0i
-S0 = S0i
-Fp0 = Fp0i
+!pw1 = 0.001
+!bryter = 1
+!call newton(1,5,nlines,eul,bryter,F0i,Fp0i,S0i,pw1)   
+!write(*,*) 'check1'
+!F0 = F0i
+!S0 = S0i
+!Fp0 = Fp0i
+pw2 = 0.001
+part = 40
+call OMP_SET_NUM_THREADS(7)
+!$OMP PARALLEL PRIVATE(k)
+!$OMP DO
+do k = 0,2*part
+    call newton(k,part,nlines,eul,2,F0i,Fp0i,S0i,pw2)
+end do
+!$OMP END DO NOWAIT
+!$OMP END PARALLEL
+
+
 
 !bryter = 6
 !call OMP_SET_NUM_THREADS(3)
@@ -47,21 +60,25 @@ Fp0 = Fp0i
 !end do
 !!$OMP END DO NOWAIT
 !!$OMP END PARALLEL
-F0i = F0
-    Fp0i = Fp0
-    S0i = S0
+!F0i = F0
+!    Fp0i = Fp0
+!    S0i = S0
+!write(*,*) F0i
+!write(*,*) F0i
+!write(*,*) F0i
+
 pw1 = 0.001
 bryter = 4
-call newton(1,4,nlines,eul,bryter,F0i,Fp0i,S0i,pw1)   
+!call newton(1,4,nlines,eul,bryter,F0i,Fp0i,S0i,pw1)   
 
 
 
-!pw2 = 0
-!part = 40
-!chunck = 2*part/3!
+pw2 = 0.000001
+part = 40
+
 
 !!$OMP PARALLEL PRIVATE(k)
-!!$OMP DO SCHEDULE(Dynamic,3)
+!!$OMP DO
 !do k = 0,2*part
 !    call newton(k,part,nlines,eul,2,F0i,Fp0i,S0i,pw2)
 !end do
@@ -92,14 +109,14 @@ real(8),  dimension(nlines,12) :: S0i
 
 bry = 0
 if (bryter == 4) then 
-    bryter = 2
-    bry = 2
-else if (bryter == 1) then
+    bry = 1
+else if (bryter == 3) then
+    bryter = 1
     bry = 1
 else if (bryter == 5) then
-    bryter = 1
+    bryter = 5
 else if (bryter == 6) then
-    bryter = 2
+    bryter = 4
     bry = 5
 end if
 
@@ -131,73 +148,14 @@ La(3,1) = offdl(2)
 La(2,3) = offdl(3)
 La(3,2) = offdl(3)
 
-!do i = 1,3
-!    sigma(i) = Tag(pos1(i),pos2(i))
-!end do 
-sigma(1) = 1
-do 
-    ! write out the jacobian
     call taylor(La,Tag,nlines,eul,bryter,F0i,Fp0i,S0i,dt,pw,Dp)
- 
-    do i = 1,4
-        sigma(i) = Tag(pos1(i),pos2(i))
-        
-        do j = 1,4
-            Call centraldiff(La,jacobidel,epsilon,pos1(j),pos2(j),pos1(i),pos2(i),nlines,eul,bryter,F0i,Fp0i,S0i,dt,pw,Dp)
-            Jacob(i,j) = jacobidel
-        end do
-    end do
-    Jinv = Jacob
-    offdl = -sigma
-call dgesv(LDA,NRHS,Jinv,LDA,IPIV,offdl,lda , Info)
-
-La(1,2) = La(1,2)+offdl(1)
-La(2,1) = La(2,1)+offdl(1)
-La(1,3) = La(1,3)+offdl(2)
-La(3,1) = La(3,1) + offdl(2)
-La(2,3) = La(2,3) + offdl(3)
-La(3,2) = La(3,2) + offdl(3)
-La(3,3) = La(3,3) +  offdl(4)
-!write(*,*) Tag(1,1:3)
-!write(*,*) Tag(2,1:3)
-!write(*,*) Tag(3,1:3)
-!write(*,*)
-
-
-minl = minloc(sigma, DIM = 1)
-maxl = maxloc(sigma, DIM = 1)
-if (abs(sigma(minl))<0.01 .and. abs(sigma(maxl)) < 0.01) then
-!write(*,*) Tag  
-    if (bryter == 1) then
-     !need to calculate F0i,Fp0i and S0i with latest La
-        call taylor(La,Tag,nlines,eul,bryter,F0i,Fp0i,S0i,dt,pw,Dp)
-    end if 
-
-
+    write(*,*) tag
     if (bry == 1) then ! If one want relaxed state. 
        
         !Performes relaxation
-        call taylor(-La,Tag,nlines,eul,3,F0i,Fp0i,S0i,dt,pw,Dp)
-    end if
-    
-    if (bry == 2) then ! when doing strain path changes the initialization point(Fp0i,F0i and S0i ) is not updated before the end of the timestep.
-        bryter = 4
-        call taylor(La,Tag,nlines,eul,6,F0i,Fp0i,S0i,dt,pw,Dp)
-        call taylor(La,Tag,nlines,eul,bryter,F0i,Fp0i,S0i,dt,pw,Dp)
-        write(*,*) tag
-        call taylor(-La,Tag,nlines,eul,3,F0i,Fp0i,S0i,dt,pw,Dp)
+        call taylor(La,Tag,nlines,eul,3,F0i,Fp0i,S0i,dt,pw,Dp)
         write(*,*) tag
     end if
-    exit
-end if
-
-if (teller == 15) then
-        epsilon = epsilon/2
-        write(*,*) 'dl redusert' , k
-        GOTO 10
-    end if
-    teller = teller +1
-end do
 if (bryter == 2) then
 write(3,*) Tag(1,1), Tag(2,2), k
 !write(11,*) Tag(1,1), Tag(2,2)
@@ -213,7 +171,6 @@ if (bry == 5) then
     if (bryter == 4) then 
 
     end if
-
 end subroutine newton
 
 subroutine centraldiff(La,jacobidel,epsilon, pos1l, pos2l,pos1T,pos2T,nlines,eul,bryter,F0i,Fp0i,s0i,dt,pw,Dp)
@@ -256,10 +213,10 @@ subroutine taylor(La,Tag,nlines,eul,bryter,F0i,Fp0i,S0i,dt,pw,Dp)
      
     !Declear all variables
  
-    real(8) :: phi1, Phi, phi2, det, dt,dt0, sigmaeq, cons, gammatot,pw,gammatoti,gammaskrank,dot
+    real(8) :: phi1, Phi, phi2, det, dt,dt0, sigmaeq, cons, gammatot,pw,gammatoti,gammaskrank,dot, dl
     real(8) , dimension(3,3)  :: F1, Fp1, Fp1inv, Fe1, Fetr,Fp0inv, Ctr,T0,T1,Ttr,Etr , & 
-                        id, Schmid,TS,Tint, CS, Tst, Fpint ,Rn,  Rtest,Dpc,Dp
-    real(8) , dimension(3,3), intent(in)  :: La
+                        id, Schmid,TS,Tint, CS, Tst, Fpint ,Rn,  Rtest,Dpc,Dp, Lb,Tagb,La0
+    real(8) , dimension(3,3) :: La
     real(8) , dimension(3,3), intent(out)  :: Tag
     real(8) , dimension(3,3,nlines) :: R, F0, Fp0,Fp0i,Fp0int,F0i,F0int, Tagc, Tagcint, Lc
     real(8),  dimension(nlines,12) :: s0,S0i,S0in
@@ -269,9 +226,13 @@ subroutine taylor(La,Tag,nlines,eul,bryter,F0i,Fp0i,S0i,dt,pw,Dp)
     real(8) , dimension(3) :: m,n
     logical, dimension(12) :: PA, Active
     logical :: consise
-    integer :: i,countera,ij, switch , numact, o,p,k, bryter,bakit,nlines,j,e,secit
+    integer :: i,countera,ij, switch , numact, o,p,k,h, bryter,bakit,nlines,j,e,secit
     double precision, dimension(12):: x
     real(8), dimension(nlines,3) , intent(in) :: eul
+    real(8) , dimension(4,4)  :: Jacob, Jinv
+    real(8) , dimension(4)  :: sigma, offdl
+    integer :: LDA = 4,NRHS = 1, Info,  minl, maxl,nit
+    integer , dimension(4) ::pos1, pos2, IPIV
     !call countlin('euleranglesin2.txt',nlines)
     !open(unit=7,file="result.txt",status='replace')  ! outputfile used for testing. 
     !open(unit=8,file="eulerangles.txt",status='replace')
@@ -280,7 +241,11 @@ subroutine taylor(La,Tag,nlines,eul,bryter,F0i,Fp0i,S0i,dt,pw,Dp)
 
     !Timeincrement
     !dt0 = 0.0000001
-    
+
+    pos1 = (/1, 1, 2, 3/)
+    pos2 =(/2, 3, 3, 3/)
+    dl = 0.01
+    La0 = La
     !Define velocity gradient
     !strainrate
     gammatot = 0
@@ -320,20 +285,20 @@ subroutine taylor(La,Tag,nlines,eul,bryter,F0i,Fp0i,S0i,dt,pw,Dp)
      bakit = 0
     !dt = dt0 
    
-     if (bryter == 1 .or. bryter == 5) then
-    s0(:,1:12) = 16
-    initalize: do o = 1,nlines ! Loop to calculate values at time 0
+    if (bryter == 1 .or. bryter == 5) then
+        s0(:,1:12) = 16
+        initalize: do o = 1,nlines ! Loop to calculate values at time 0
         
     !read(9,*) phi1, Phi, phi2
-    phi1 = eul(o,1)
-    phi = eul(o,2)
-    phi2 = eul(o,3)
-    !Deformation gradient at time 0 is I
-    F0(1:3,1:3,o) = id
+        phi1 = eul(o,1)
+        phi = eul(o,2)
+        phi2 = eul(o,3)
+     !Deformation gradient at time 0 is I
+        F0(1:3,1:3,o) = id
     !Cauchy Stress at time 0, Crystal orientation
-    T0 = 0
+        T0 = 0
     !Prior to all deformation Fp0 = I, Crystal orientation
-    Fp0(1:3,1:3,o) = id
+        Fp0(1:3,1:3,o) = id
     
     !!!!!! Variable assignments end
     ! Calculate rotation matrix
@@ -377,19 +342,101 @@ gammaskrank = 0.00001
     secit = 0
     dt0 = dt
     switch = 1
+    
+    iter: do while (switch < 5000000)     
+    if (bryter == 3) then
+        goto 13
+    end if
+       
+   
+   
+   !!! Iteration to ensure boundary condition is satisfied at througout all timesteps. 
+    nit = 0   
+    boundarycond: do  while (nit < 10)  
+       ! write(*,*) La
+       call timestep(Tag, Dp, La, gammatot, gammatoti , nlines, Fp0, Fp0int, F0, F0int,R,S0in,s0,dt0, slip , Cel,x)
+      ! write(*,*) Tag
+       do h = 1,4
+        sigma(h) = Tag(pos1(h),pos2(h))
+       end do
+      ! write(*,*) sigma
+         minl = minloc(sigma, DIM = 1)
+         maxl = maxloc(sigma, DIM = 1)
+         if (abs(sigma(minl))<0.00001 .and. abs(sigma(maxl)) < 0.00001) then
+            
+         !   write(*,*) tag
+            exit boundarycond
+         end if 
+!!!!!! Calculate Jacobian matrix in order to satisfy boundary condition
+       do k = 1,4
+            do p = 1,4
+                Lb = La
+                if (pos1(p) /= pos2(p)) then
+                Lb(pos1(p),pos2(p)) = La(pos1(p),pos2(p)) + dl
+                Lb(pos2(p),pos1(p)) = La(pos2(p),pos1(p)) + dl
+                else if (pos1(p) == pos2(p)) then
+                Lb(pos1(p),pos2(p)) = La(pos1(p),pos2(p)) + dl 
+                end if
+
+                call timestep(Tagb, Dp, Lb, gammatot, gammatoti , nlines, Fp0, Fp0int, F0, F0int,R,S0in,s0,dt0, slip , Cel,x)
+            jacob(k,p) = (Tagb(pos1(k),pos2(k))-Tag(pos1(k),pos2(k)))/dl
+            end do
+        end do
+        !write(*,*) tag
+        !write(*,*) tagb
+        Jinv = jacob
+        offdl = -sigma
+        call dgesv(LDA,NRHS,Jinv,LDA,IPIV,offdl,lda , Info)
+        La(1,2) = La(1,2) + offdl(1)
+        La(2,1) = La(2,1) + offdl(1)
+        La(1,3) = La(1,3) + offdl(2)
+        La(3,1) = La(3,1) + offdl(2)
+        La(2,3) = La(2,3) + offdl(3)
+        La(3,2) = La(3,2) + offdl(3)
+        La(3,3) = La(3,3) + offdl(4)
+        
+        !write(*,*)  
+        !write(*,*) jacob(1,1:4)
+        !write(*,*) jacob(2,1:4)
+        !write(*,*) jacob(3,1:4)
+        !write(*,*) jacob(4,1:4)
+        !write(*,*) 
+        minl = minloc(sigma, DIM = 1)
+        maxl = maxloc(sigma, DIM = 1)
+       
+       
+       
+        if (abs(sigma(minl))<0.01 .and. abs(sigma(maxl)) < 0.01) then
+           ! write(*,*) tag
+            exit boundarycond
+            
+        end if 
+
+   nit = nit+1
+   !write(*,*) nit
+    end do boundarycond
+   
+  !if (gammatoti > pw) then 
+  !  write(*,*) 'reached plastic work'
+  !  exit iter
+  ! end if
+   
+   
    
 
-    iter: do while (switch < 500000)     
-
-       call timestep(Tag, Dp, F1, La, gammatot, gammatoti , nlines, Fp0, Fp0int, F0, F0int,R,S0in,s0,dt0, slip , Cel,x)
-   !write(*,*) Tag
+   
+   
+       !write(*,*) Tag
     if (mod(switch,5000-1)==0) then 
         !   write(8,*) phi1, Phi, phi2
        end if 
     call eqvstr(Tag,sigmaeq)
     !write(10,*) sigmaeq
 
-    if (bryter == 1 .or. bryter == 5) then
+    if (bryter == 1 .or. bryter == 5 .or. bryter == 4) then
+       
+        
+       
         if (gammatoti > pw .and. abs((gammatoti - pw)/pw) > 0.000000001) then
             if (pw == 0) then
                 dt0 = dt0/2
@@ -397,21 +444,20 @@ gammaskrank = 0.00001
             dt0 = (pw-gammatot)*dt0/(gammatoti-gammatot) 
             end if
             switch = switch +1
-            !write(*,*) gammatoti
             secit = secit +1
             if (secit > 15) then 
+                write(*,*) 'early exit'
                 exit iter
             end if 
             cycle iter
         end if 
-        
         
         F0 = F0int
         Fp0 = Fp0int
         Tagc = Tagcint
         s0 = s0in
         gammatot = gammatoti 
-
+        
         if (bryter == 5) then
             if (gammatot > gammaskrank) then
                 call contract2(La,Dp,dot)
@@ -422,7 +468,7 @@ gammaskrank = 0.00001
             end if
         end if 
 
-        if (abs((gammatot -pw)/pw)<= 0.000000001) then
+        if (abs((gammatot -pw)/pw) <= 0.000000001) then
             Fp0i = Fp0
             F0i  = F0
             S0i = S0   
@@ -483,17 +529,40 @@ gammaskrank = 0.00001
 
         end if
     else if (bryter == 3) then
+        13 continue
+        La = 0 
+        La(1,1) = Tag(1,1)/sqrt(Tag(1,1)**2+Tag(2,2)**2)
+        La(2,2) = Tag(2,2)/sqrt(Tag(1,1)**2+Tag(2,2)**2)
+        La(3,3) =-0.3*(La(1,1)+La(2,2))
+        La(1,2) =0
+        La(2,1) = 0
+        La(1,3) = 0
+        La(3,1) = 0
+        La(2,3) = 0
+        La(3,2) = 0
+        write(*,*) La
+        do i = 1,3
+            
+            call timestep(Tag, Dp, -La, gammatot, gammatoti , nlines, Fp0, Fp0int, F0, F0int,R,S0in,s0,dt0, slip , Cel,x)
+            write(*,*) tag
+            write(*,*) x
+            !if (sum(abs(x)) == 0) then 
+            F0 = F0int
+            Fp0 = Fp0int
+            Tagc = Tagcint
+            s0 = s0in
+            gammatot = gammatoti 
+            !else if (sum(abs(x)) /= 0) then
+            !    La = -La
+            !end if 
+        end do
         
-        F0 = F0int
-        Fp0 = Fp0int
-        Tagc = Tagcint
-        s0 = s0in
-        gammatot = gammatoti 
-    Fp0i = Fp0
-    F0i  = F0
-    S0i = S0   
+        
+        Fp0i = Fp0
+        F0i  = F0
+        S0i = S0   
    
-
+        exit iter
     bakit = bakit+1  
     write(*,*) bakit 
     write(*,*) x
@@ -502,37 +571,36 @@ gammaskrank = 0.00001
         write(*,*) bakit
         exit iter
     end if 
-else if (bryter == 4) then 
-    if (gammatoti > pw .and. abs((gammatoti - pw)/pw) > 0.000000001) then
-        if (pw == 0) then
-            dt0 = dt0/2
-        else
-        dt0 = (pw-gammatot)*dt0/(gammatoti-gammatot) 
-        end if
-        switch = switch +1
-        secit = secit +1
-        if (secit > 15) then 
-            exit iter
-        end if 
-        cycle iter
-    end if 
+!else if (bryter == 4) then 
+!    if (gammatoti > pw .and. abs((gammatoti - pw)/pw) > 0.000000001) then
+!        if (pw == 0) then
+!            dt0 = dt0/2
+!        else
+!        dt0 = (pw-gammatot)*dt0/(gammatoti-gammatot) 
+!        end if
+!        switch = switch +1
+!        secit = secit +1
+!        if (secit > 15) then 
+!            exit iter
+!        end if 
+!        cycle iter
+!    end if 
     
     
-    F0 = F0int
-    Fp0 = Fp0int
-    Tagc = Tagcint
-    s0 = s0in
-    gammatot = gammatoti 
-
-    Fp0i = Fp0
-    F0i  = F0
-    S0i = S0   
-
-    
-
-    if (abs((gammatot -pw)/pw)<= 0.000000001) then
-        exit iter
-    end if
+!    F0 = F0int
+!    Fp0 = Fp0int
+!    Tagc = Tagcint
+!    s0 = s0in
+!    gammatot = gammatoti 
+!    
+!    if (abs((gammatot -pw)/pw)<= 0.000000001) then
+!        Fp0i = Fp0
+!        F0i  = F0
+!        S0i = S0   
+!       
+ !       exit iter
+!
+!    end if
 
     end if
 
@@ -553,7 +621,7 @@ else if (bryter == 4) then
 
 
 
-subroutine timestep(Tag, Dp, F1, La, gammatot, gammatoti , nlines, Fp0, Fp0int, F0, F0int,R,S0in,s0,dt0, slip,Cel,x )
+subroutine timestep(Tag, Dp, La, gammatot, gammatoti , nlines, Fp0, Fp0int, F0, F0int,R,S0in,s0,dt0, slip,Cel,x )
     
       !use setparam
     implicit none
@@ -561,7 +629,7 @@ subroutine timestep(Tag, Dp, F1, La, gammatot, gammatoti , nlines, Fp0, Fp0int, 
      
     !Declear all variables
  
-    real(8) :: phi1, Phi, phi2, det, dt,dt0, cons, gammatot,gammatoti
+    real(8) :: phi1, Phi, phi2, det,dt0, cons, gammatot,gammatoti
     real(8) , dimension(3,3)  :: F1, Fp1, Fp1inv, Fe1, Fetr,Fp0inv, Ctr,T1,Ttr,Etr , & 
                         id, Schmid,TS,Tint, CS, Tst, Fpint ,Rn,  Rtest,Dpc,Dp
     real(8) , dimension(3,3), intent(in)  :: La
