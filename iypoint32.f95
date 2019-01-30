@@ -25,20 +25,21 @@ write(*,*)
 Allocate(F0i(3,3,nlines),Fp0i(3,3,nlines))
 Allocate(s0i(nlines,12))
 
-!pw1 = 0.001
-!bryter = 1
+pw1 = 0.001
+bryter = 5
 !call newton(1,5,nlines,eul,bryter,F0i,Fp0i,S0i,pw1)   
-!write(*,*) 'check1'
+write(*,*) 'check1'
 !F0 = F0i
 !S0 = S0i
 !Fp0 = Fp0i
 pw2 = 0.001
-part = 40
+part = 6
 call OMP_SET_NUM_THREADS(3)
-!$OMP PARALLEL PRIVATE(k)
+!$OMP PARALLEL PRIVATE(k,F0i,S0i,Fp0i,bryter)
 !$OMP DO
 do k = 0,2*part
-    call newton(k,part,nlines,eul,1,F0i,Fp0i,S0i,pw2)
+    
+    call newton(k,part,nlines,eul,bryter,F0i,Fp0i,S0i,pw2)
 end do
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
@@ -150,12 +151,10 @@ La(2,3) = offdl(3)
 La(3,2) = offdl(3)
 
     call taylor(La,Tag,nlines,eul,bryter,F0i,Fp0i,S0i,dt,pw,Dp)
-    write(*,*) tag
+
     if (bry == 1) then ! If one want relaxed state. 
-       
         !Performes relaxation
         call taylor(La,Tag,nlines,eul,3,F0i,Fp0i,S0i,dt,pw,Dp)
-        write(*,*) tag
     end if
 if (bryter == 2) then
 write(3,*) Tag(1,1), Tag(2,2), k
@@ -166,6 +165,7 @@ if (bry == 2) then
     write(3,*) Tag(1,1), Tag(2,2), k
     !write(11,*) Tag(1,1), Tag(2,2)
     write(*,*) Tag(1,1), Tag(2,2), k
+    bryter = 5
 end if 
 if (bry == 5) then
     bryter = 6
@@ -443,15 +443,17 @@ gammaskrank = 0.00001
        
         
        
-        if (gammatoti > pw .and. abs((gammatoti - pw)/pw) > 0.000000001) then
+        if (gammatoti > pw .and. abs((gammatoti - pw)/pw) > 0.0000001) then
             if (pw == 0) then
                 dt0 = dt0/2
             else
             dt0 = (pw-gammatot)*dt0/(gammatoti-gammatot) 
             end if
+            
             switch = switch +1
             secit = secit +1
-            if (secit > 15) then 
+            if (secit > 30) then 
+                write(*,*) gammatoti
                 write(*,*) 'early exit'
                 exit iter
             end if 
@@ -474,7 +476,7 @@ gammaskrank = 0.00001
             end if
         end if 
 
-        if (abs((gammatot -pw)/pw) <= 0.000000001) then
+        if (abs((gammatot -pw)/pw) <= 0.0000001) then
             Fp0i = Fp0
             F0i  = F0
             S0i = S0   
