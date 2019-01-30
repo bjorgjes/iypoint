@@ -34,11 +34,11 @@ write(*,*) 'check1'
 !Fp0 = Fp0i
 pw2 = 0.001
 part = 200
-call OMP_SET_NUM_THREADS(3)
+call OMP_SET_NUM_THREADS(7)
 !$OMP PARALLEL PRIVATE(k,F0i,S0i,Fp0i,bryter)
 !$OMP DO
 do k = 0,2*part
-    
+    bryter = 5
     call newton(k,part,nlines,eul,bryter,F0i,Fp0i,S0i,pw2)
 end do
 !$OMP END DO NOWAIT
