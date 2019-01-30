@@ -34,11 +34,11 @@ Allocate(s0i(nlines,12))
 !Fp0 = Fp0i
 pw2 = 0.001
 part = 40
-call OMP_SET_NUM_THREADS(7)
+call OMP_SET_NUM_THREADS(3)
 !$OMP PARALLEL PRIVATE(k)
 !$OMP DO
 do k = 0,2*part
-    call newton(k,part,nlines,eul,2,F0i,Fp0i,S0i,pw2)
+    call newton(k,part,nlines,eul,1,F0i,Fp0i,S0i,pw2)
 end do
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
@@ -114,7 +114,8 @@ else if (bryter == 3) then
     bryter = 1
     bry = 1
 else if (bryter == 5) then
-    bryter = 5
+    bryter = 1
+    bry = 2
 else if (bryter == 6) then
     bryter = 4
     bry = 5
@@ -160,6 +161,11 @@ if (bryter == 2) then
 write(3,*) Tag(1,1), Tag(2,2), k
 !write(11,*) Tag(1,1), Tag(2,2)
 write(*,*) Tag(1,1), Tag(2,2), k
+end if 
+if (bry == 2) then
+    write(3,*) Tag(1,1), Tag(2,2), k
+    !write(11,*) Tag(1,1), Tag(2,2)
+    write(*,*) Tag(1,1), Tag(2,2), k
 end if 
 if (bry == 5) then
     bryter = 6
