@@ -33,7 +33,7 @@ write(*,*) 'check1'
 !S0 = S0i
 !Fp0 = Fp0i
 pw2 = 0.001
-part = 6
+part = 200
 call OMP_SET_NUM_THREADS(3)
 !$OMP PARALLEL PRIVATE(k,F0i,S0i,Fp0i,bryter)
 !$OMP DO
