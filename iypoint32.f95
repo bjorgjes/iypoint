@@ -32,7 +32,7 @@ write(*,*) 'check1'
 !F0 = F0i
 !S0 = S0i
 !Fp0 = Fp0i
-pw2 = 0.001
+pw2 = 0.01
 part = 200
 call OMP_SET_NUM_THREADS(7)
 !$OMP PARALLEL PRIVATE(k,F0i,S0i,Fp0i,bryter)
@@ -250,7 +250,7 @@ subroutine taylor(La,Tag,nlines,eul,bryter,F0i,Fp0i,S0i,dt,pw,Dp)
 
     pos1 = (/1, 1, 2, 3/)
     pos2 =(/2, 3, 3, 3/)
-    dl = 0.01
+    dl = 0.000001
     La0 = La
     !Define velocity gradient
     !strainrate
@@ -443,7 +443,7 @@ gammaskrank = 0.00001
        
         
        
-        if (gammatoti > pw .and. abs((gammatoti - pw)/pw) > 0.0000001) then
+        if (gammatoti > pw .and. abs((gammatoti - pw)/pw) > 0.000000001) then
             if (pw == 0) then
                 dt0 = dt0/2
             else
@@ -476,7 +476,7 @@ gammaskrank = 0.00001
             end if
         end if 
 
-        if (abs((gammatot -pw)/pw) <= 0.0000001) then
+        if (abs((gammatot -pw)/pw) <= 0.000000001) then
             Fp0i = Fp0
             F0i  = F0
             S0i = S0   
