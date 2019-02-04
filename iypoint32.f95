@@ -6,8 +6,8 @@ real(8) , dimension(:,:), Allocatable ::eul
 real(8) , dimension(:,:,:), Allocatable  :: F0i, Fp0i,F0,Fp0
 real(8),  dimension(:,:), Allocatable :: s0i,S0
 t1 = omp_get_wtime()
-open(unit=11,file="result2.txt",status='replace')
-open(unit=3,file="Stresss.txt",status='replace')
+open(unit=11,file="result.txt",status='replace')
+open(unit=3,file="Stress.txt",status='replace')
 open(unit=8,file="eulerangles.txt",status='replace')
 open(unit=13,file="Dp.txt",status='replace')
 call countlin('euleranglesin.txt',nlines)
@@ -24,25 +24,42 @@ write(*,*)
 
 Allocate(F0i(3,3,nlines),Fp0i(3,3,nlines))
 Allocate(s0i(nlines,12))
+!!!!! This is the section where the experiment design is setup. The  variable "bryter" determines in which mode the code is run. 
+!!!
+!!!   bryter = 1 - Calculates point on the yield surface corresponding to the prescribed L11,L22 and plastic work and updates F0,F0p,S0
+!!!                Does not write to file, Initialize an undeformed crystal
+!!!
+!!!   bryter = 2 - Calculates point on the yield surface given L11,L22 to a prescribed plastic work, given a prestrained and relaxed crystal is given(F0,Fp0,S0)
+!!!                Writes out the calculated point in the file stress.txt 
+!!!                Used when calculating instantaneous yield surfaces.    
+!!!   
+!!!   bryter = 3 - Calculates point on the yield surface corresponding to the prescribed L11,L22 and plastic work, RELAXES, and updates F0,F0p,S0
+!!!                Used when calculating instantaneous yield surfaces, prior to setting bryter = 2.  
+!!!
+!!!   bryter = 4 - Used for strain path change, takes a prestrained crystal(F0,Fp0,S0) calculated using eg bryter = 1, and perform strain in a prescribed direction for a given plastic work. 
 
-pw1 = 0.001
+
+pw1 = 0.003
 bryter = 5
-!call newton(1,5,nlines,eul,bryter,F0i,Fp0i,S0i,pw1)   
+call newton(1,5,nlines,eul,bryter,F0i,Fp0i,S0i,pw1)   
+bryter = 6
+pw1 = 0.001
+call newton(0,3,nlines,eul,bryter,F0i,Fp0i,S0i,pw1)   
 write(*,*) 'check1'
 !F0 = F0i
 !S0 = S0i
 !Fp0 = Fp0i
-pw2 = 0.01
+pw2 = 0.001
 part = 200
 call OMP_SET_NUM_THREADS(7)
-!$OMP PARALLEL PRIVATE(k,F0i,S0i,Fp0i,bryter)
-!$OMP DO
-do k = 0,2*part
-    bryter = 5
-    call newton(k,part,nlines,eul,bryter,F0i,Fp0i,S0i,pw2)
-end do
-!$OMP END DO NOWAIT
-!$OMP END PARALLEL
+!!$OMP PARALLEL PRIVATE(k,F0i,S0i,Fp0i,bryter)
+!!$OMP DO
+!do k = 0,2*part
+!    bryter = 7
+!    call newton(k,part,nlines,eul,bryter,F0i,Fp0i,S0i,pw2)
+!end do
+!!$OMP END DO NOWAIT
+!!$OMP END PARALLEL
 
 
 
@@ -74,7 +91,7 @@ bryter = 4
 
 
 
-pw2 = 0.000001
+pw2 = 0.0000001
 part = 40
 
 
@@ -114,10 +131,10 @@ if (bryter == 4) then
 else if (bryter == 3) then
     bryter = 1
     bry = 1
-else if (bryter == 5) then
+else if (bryter == 7) then
     bryter = 1
     bry = 2
-else if (bryter == 6) then
+else if (bryter == 8) then
     bryter = 4
     bry = 5
 end if
@@ -250,7 +267,7 @@ subroutine taylor(La,Tag,nlines,eul,bryter,F0i,Fp0i,S0i,dt,pw,Dp)
 
     pos1 = (/1, 1, 2, 3/)
     pos2 =(/2, 3, 3, 3/)
-    dl = 0.000001
+    dl = 0.0000001
     La0 = La
     !Define velocity gradient
     !strainrate
@@ -358,7 +375,7 @@ gammaskrank = 0.00001
    
    !!! Iteration to ensure boundary condition is satisfied at througout all timesteps. 
     nit = 0   
-    boundarycond: do  while (nit < 10)  
+    boundarycond: do  while (nit < 20)  
        ! write(*,*) La
        call timestep(Tag, Dp, La, gammatot, gammatoti , nlines, Fp0, Fp0int, F0, F0int,R,S0in,s0,dt0, slip , Cel,x)
       ! write(*,*) Tag
@@ -368,7 +385,7 @@ gammaskrank = 0.00001
       ! write(*,*) sigma
          minl = minloc(sigma, DIM = 1)
          maxl = maxloc(sigma, DIM = 1)
-         if (abs(sigma(minl))<0.00001 .and. abs(sigma(maxl)) < 0.00001) then
+         if (abs(sigma(minl))<0.000000001 .and. abs(sigma(maxl)) < 0.000000001) then
             
          !   write(*,*) tag
             exit boundarycond
@@ -411,12 +428,6 @@ gammaskrank = 0.00001
         maxl = maxloc(sigma, DIM = 1)
        
        
-       
-        if (abs(sigma(minl))<0.01 .and. abs(sigma(maxl)) < 0.01) then
-           ! write(*,*) tag
-            exit boundarycond
-            
-        end if 
 
    nit = nit+1
    !write(*,*) nit
@@ -472,7 +483,7 @@ gammaskrank = 0.00001
                 dot = dot/norm2(La)/norm2(Dp)
             write(11,*) Tag(1,3),Tag(1,2), Tag(2,3), Tag(3,3) , dot , acos(dot), gammatot
             
-            gammaskrank = gammaskrank + 0.0001
+            gammaskrank = gammaskrank + 0.00001
             end if
         end if 
 
