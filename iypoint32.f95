@@ -18,7 +18,7 @@ open(action='read',unit=15,file="euleranglesin.txt",status='old')
 allocate(eul(nlines,3))
 do i = 1,nlines
     read(15,*) eul(i,1:3)
-    write(*,*) eul(i,1:3)
+   ! write(*,*) eul(i,1:3)
 end do
 write(*,*)
 
@@ -42,10 +42,10 @@ Allocate(s0i(nlines,12))
 pw1 = 0.003
 bryter = 5
 call newton(1,5,nlines,eul,bryter,F0i,Fp0i,S0i,pw1)   
-bryter = 6
-pw1 = 0.001
-call newton(0,3,nlines,eul,bryter,F0i,Fp0i,S0i,pw1)   
-write(*,*) 'check1'
+!bryter = 6
+!pw1 = 0.001
+!call newton(0,3,nlines,eul,bryter,F0i,Fp0i,S0i,pw1)   
+!write(*,*) 'check1'
 !F0 = F0i
 !S0 = S0i
 !Fp0 = Fp0i
@@ -254,8 +254,11 @@ subroutine taylor(La,Tag,nlines,eul,bryter,F0i,Fp0i,S0i,dt,pw,Dp)
     real(8), dimension(nlines,3) , intent(in) :: eul
     real(8) , dimension(4,4)  :: Jacob, Jinv
     real(8) , dimension(4)  :: sigma, offdl
-    integer :: LDA = 4,NRHS = 1, Info,  minl, maxl,nit
-    integer , dimension(4) ::pos1, pos2, IPIV
+    integer :: LDA = 4,NRHS = 1, Info,  minl, maxl,nit,bcond=2
+    integer , dimension(4) :: IPIV
+    real(8), dimension(5) :: propconst, offdl2, sigma2, IPIV2
+    real(8) , dimension(5,5)  :: Jacob2, Jinv2
+    integer, dimension(5) :: pos1, pos2
     !call countlin('euleranglesin2.txt',nlines)
     !open(unit=7,file="result.txt",status='replace')  ! outputfile used for testing. 
     !open(unit=8,file="eulerangles.txt",status='replace')
@@ -265,9 +268,9 @@ subroutine taylor(La,Tag,nlines,eul,bryter,F0i,Fp0i,S0i,dt,pw,Dp)
     !Timeincrement
     !dt0 = 0.0000001
 
-    pos1 = (/1, 1, 2, 3/)
-    pos2 =(/2, 3, 3, 3/)
-    dl = 0.0000001
+    pos1 = (/1, 1, 2, 3, 2/)
+    pos2 =(/2, 3, 3, 3, 2/)
+    dl = 0.00001
     La0 = La
     !Define velocity gradient
     !strainrate
@@ -373,7 +376,9 @@ gammaskrank = 0.00001
        
    
    
-   !!! Iteration to ensure boundary condition is satisfied at througout all timesteps. 
+Select case (bcond)
+case (1)    
+!!! Iteration to ensure boundary condition is satisfied at througout all timesteps. 
     nit = 0   
     boundarycond: do  while (nit < 20)  
        ! write(*,*) La
@@ -385,7 +390,7 @@ gammaskrank = 0.00001
       ! write(*,*) sigma
          minl = minloc(sigma, DIM = 1)
          maxl = maxloc(sigma, DIM = 1)
-         if (abs(sigma(minl))<0.000000001 .and. abs(sigma(maxl)) < 0.000000001) then
+         if (abs(sigma(minl)) < 0.000000001 .and. abs(sigma(maxl)) < 0.000000001) then
             
          !   write(*,*) tag
             exit boundarycond
@@ -409,6 +414,7 @@ gammaskrank = 0.00001
         !write(*,*) tagb
         Jinv = jacob
         offdl = -sigma
+
         call dgesv(LDA,NRHS,Jinv,LDA,IPIV,offdl,lda , Info)
         La(1,2) = La(1,2) + offdl(1)
         La(2,1) = La(2,1) + offdl(1)
@@ -433,6 +439,73 @@ gammaskrank = 0.00001
    !write(*,*) nit
     end do boundarycond
    
+case (2)
+    nit = 0
+   propconst = (/0.3, 0.01, 0.13, 0.9, 1./)
+    !La(1,1) = 1/sqrt(1.0+propconst(1)**2)
+    !La(2,2) = propconst(1)**2/sqrt(1.0+propconst(1)**2)
+    !La(1,2) = 0
+    !La(2,1) = 0
+    !La(1,3) = 0
+    !La(3,1) = 0
+    !La(2,3) = 0
+    !La(3,2) = 0
+    !La(3,3) = -1.0/3.0*(La(1,1)+La(2,2))
+   boundary2: do while (nit < 20)
+    call timestep(Tag, Dp, La, gammatot, gammatoti , nlines, Fp0, Fp0int, F0, F0int,R,S0in,s0,dt0, slip , Cel,x)
+    do h = 1,5
+        sigma2(h) = Tag(pos1(h),pos2(h))-propconst(h)*Tag(1,1)
+    end do
+       !write(*,*) sigma2
+    if (gammatoti > pw) then
+        write(*,*) sigma2 , Tag(1,1), Tag(2,2), gammatoti
+    end if
+         minl = minloc(sigma2, DIM = 1)
+         maxl = maxloc(sigma2, DIM = 1)
+         if (abs(sigma2(minl)) < 0.000000001 .and. abs(sigma2(maxl)) < 0.000000001) then
+            write(*,*) sigma2 , Tag(1,1), Tag(2,2), gammatoti
+         !   write(*,*) tag
+            exit boundary2
+         end if 
+     do k = 1,5
+            do p = 1,5
+                Lb = La
+                if (pos1(p) /= pos2(p)) then
+                Lb(pos1(p),pos2(p)) = La(pos1(p),pos2(p)) + dl
+                Lb(pos2(p),pos1(p)) = La(pos2(p),pos1(p)) + dl
+                else if (pos1(p) == pos2(p)) then
+                Lb(pos1(p),pos2(p)) = La(pos1(p),pos2(p)) + dl 
+                end if
+
+                call timestep(Tagb, Dp, Lb, gammatot, gammatoti , nlines, Fp0, Fp0int, F0, F0int,R,S0in,s0,dt0, slip , Cel,x)
+            jacob2(k,p) = ((Tagb(pos1(k),pos2(k))-propconst(k)*Tagb(1,1))-(Tag(pos1(k),pos2(k))-propconst(k)*tag(1,1)))/dl
+            end do
+        end do
+        Jinv2 = jacob2
+        offdl2 = -sigma2
+        !write(*,*) offdl2
+        call dgesv(5,1,Jinv2,5,IPIV2,offdl2, 5 , Info)
+       ! write(*,*) info
+       ! write(*,*) offdl2
+        La(1,2) = La(1,2) + offdl2(1)
+        La(2,1) = La(2,1) + offdl2(1)
+        La(1,3) = La(1,3) + offdl2(2)
+        La(3,1) = La(3,1) + offdl2(2)
+        La(2,3) = La(2,3) + offdl2(3)
+        La(3,2) = La(3,2) + offdl2(3)
+        La(3,3) = La(3,3) + offdl2(4)
+        La(2,2) = La(2,2) + offdl2(5)
+        !write(*,*)  
+        !write(*,*) Jinv2(1,1:5)
+        !write(*,*) jinv2(2,1:5)
+        !write(*,*) jinv2(3,1:5)
+        !write(*,*) jinv2(4,1:5)
+        !write(*,*) jinv2(5,1:5)
+        !write(*,*) 
+        !write(*,*) offdl2
+        nit = nit+1
+   end do boundary2
+end select
   !if (gammatoti > pw) then 
   !  write(*,*) 'reached plastic work'
   !  exit iter
@@ -482,7 +555,7 @@ gammaskrank = 0.00001
                 call contract2(La,Dp,dot)
                 dot = dot/norm2(La)/norm2(Dp)
             write(11,*) Tag(1,3),Tag(1,2), Tag(2,3), Tag(3,3) , dot , acos(dot), gammatot
-            
+            write(3,*) Tag(1,1), Tag(2,2), gammatot
             gammaskrank = gammaskrank + 0.00001
             end if
         end if 
@@ -1444,3 +1517,17 @@ subroutine contract2(T,S,dprod)
     
 return
 end subroutine contract2
+
+
+subroutine hoshfordnormal(Tag, n)
+    !Subroutine for calculation of the normal direction of the Hoshford/Hersey yield surface ie it calculates the gradient of the Lp norm
+
+    implicit none 
+    real(8), dimension(3,3) :: A, Tag, n, VL,VR
+    real(8), dimension(3) :: WR,WI
+    real(8), dimension(1000) :: work
+    integer :: LDA = 3, LWORK = 1000, INFO
+
+    call dgeev('N','V',LDA,Tag,LDA,WR,WI,VL,LDA,VR,LDA,WORK,LWORK,INFO)
+
+end subroutine hoshfordnormal
