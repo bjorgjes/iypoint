@@ -1,29 +1,23 @@
 program ypoint
-implicit none
-integer :: k, part,nlines,i,bryter,chunck
+use global
+    implicit none
+
+integer :: part,bryter
 real(8) :: t1,t2,omp_get_wtime,pw1,pw2
-real(8) , dimension(:,:), Allocatable ::eul
-real(8) , dimension(:,:,:), Allocatable  :: F0i, Fp0i,F0,Fp0
-real(8),  dimension(:,:), Allocatable :: s0i,S0
+!real(8) , dimension(:,:), Allocatable ::eul
+real(8) , dimension(:,:,:), Allocatable  :: F0,Fp0
+real(8),  dimension(:,:), Allocatable :: S0
+
 t1 = omp_get_wtime()
 open(unit=11,file="result.txt",status='replace')
 open(unit=3,file="Stress.txt",status='replace')
 open(unit=8,file="eulerangles.txt",status='replace')
 open(unit=13,file="Dp.txt",status='replace')
-call countlin('euleranglesin.txt',nlines)
+call init()
 write(*,*) nlines
 
-open(action='read',unit=15,file="euleranglesin.txt",status='old')
-
-allocate(eul(nlines,3))
-do i = 1,nlines
-    read(15,*) eul(i,1:3)
-   ! write(*,*) eul(i,1:3)
-end do
-write(*,*)
-
-Allocate(F0i(3,3,nlines),Fp0i(3,3,nlines))
-Allocate(s0i(nlines,12))
+Allocate(F0(3,3,nlines),Fp0(3,3,nlines))
+Allocate(s0(nlines,12))
 !!!!! This is the section where the experiment design is setup. The  variable "bryter" determines in which mode the code is run. 
 !!!
 !!!   bryter = 1 - Calculates point on the yield surface corresponding to the prescribed L11,L22 and plastic work and updates F0,F0p,S0
@@ -39,9 +33,9 @@ Allocate(s0i(nlines,12))
 !!!   bryter = 4 - Used for strain path change, takes a prestrained crystal(F0,Fp0,S0) calculated using eg bryter = 1, and perform strain in a prescribed direction for a given plastic work. 
 
 
-pw1 = 0.003
+pw1 = 0.001
 bryter = 5
-call newton(1,5,nlines,eul,bryter,F0i,Fp0i,S0i,pw1)   
+call newton(2,5,bryter,F0,Fp0,S0,pw1)   
 !bryter = 6
 !pw1 = 0.001
 !call newton(0,3,nlines,eul,bryter,F0i,Fp0i,S0i,pw1)   
@@ -112,16 +106,17 @@ end program ypoint
 
 
 
-subroutine newton(k,part,nlines,eul,bryter,F0i,Fp0i,S0i,pw)
-implicit none
+subroutine newton(k,part,bryter,F0i,Fp0i,S0i,pw)
+    use global
+    implicit none
 real(8) , dimension(3,3)  :: La, Tag, Dp
 real(8) , dimension(4,4)  :: Jacob, Jinv
 real(8) , dimension(4)  :: sigma, offdl
-real(8) :: epsilon, jacobidel, l, pi = 3.14865,dt,pw
-integer :: i, j , LDA = 4,NRHS = 1, Info, k, minl, maxl, part,nlines,omp_get_thread_num,teller,bry
+real(8) :: epsilon, jacobidel, l,pw
+integer :: i, j , LDA = 4,NRHS = 1, Info, k, minl, maxl, part,omp_get_thread_num,teller,bry
 integer  :: bryter
 integer , dimension(4) ::pos1, pos2, IPIV
-real(8), dimension(nlines,3), intent(in) :: eul
+!real(8), dimension(nlines,3), intent(in) :: eul
 real(8) , dimension(3,3,nlines)  :: Fp0i,F0i
 real(8),  dimension(nlines,12) :: S0i
 
@@ -142,20 +137,16 @@ end if
 
 
 offdl = 0
-epsilon = 0.00001
+epsilon = 0.0000001
 pos1 = (/1, 1, 2, 3/)
 pos2 =(/2, 3, 3, 3/)
 
-dt = 0.00001
 
 10 CONTINUE
 teller = 0
 
 !Initialize La
-l =1 !strainrate
-!do h = (k-1)*chunck,k*chunck-1
-!write(*,*) cos(pi*k/part), sin(pi*k/part)
-!write(*,*)
+!strainrate
 La = 0 
 La(1,1) = cos(pi*k/part)
 La(2,2) = sin(pi*k/part)
@@ -167,11 +158,11 @@ La(3,1) = offdl(2)
 La(2,3) = offdl(3)
 La(3,2) = offdl(3)
 
-    call taylor(La,Tag,nlines,eul,bryter,F0i,Fp0i,S0i,dt,pw,Dp)
+    call taylor(La,Tag,bryter,F0i,Fp0i,S0i,pw,Dp)
 
     if (bry == 1) then ! If one want relaxed state. 
         !Performes relaxation
-        call taylor(La,Tag,nlines,eul,3,F0i,Fp0i,S0i,dt,pw,Dp)
+        call taylor(La,Tag,3,F0i,Fp0i,S0i,pw,Dp)
     end if
 if (bryter == 2) then
 write(3,*) Tag(1,1), Tag(2,2), k
@@ -217,8 +208,8 @@ subroutine centraldiff(La,jacobidel,epsilon, pos1l, pos2l,pos1T,pos2T,nlines,eul
         Laint1(pos1l,pos2l) = Laint1(pos1l,pos2l)+epsilon 
         Laint2(pos1l,pos2l) = Laint2(pos1l,pos2l)-epsilon
     end if      
-    Call taylor(Laint1,Tag1,nlines,eul,bryter,F0i,Fp0i,S0i,dt,pw,Dp)
-    call taylor(Laint2,Tag2,nlines,eul,bryter,F0i,Fp0i,S0i,dt,pw,Dp)
+    Call taylor(Laint1,Tag1,bryter,F0i,Fp0i,S0i,pw,Dp)
+    call taylor(Laint2,Tag2,bryter,F0i,Fp0i,S0i,pw,Dp)
 
     jacobidel = (Tag1(pos1T,pos2T)-Tag2(pos1T,pos2T))/(2*epsilon)
     return
@@ -229,29 +220,26 @@ end subroutine centraldiff
 
 
 
-subroutine taylor(La,Tag,nlines,eul,bryter,F0i,Fp0i,S0i,dt,pw,Dp)
-    !use setparam
+subroutine taylor(La,Tag,bryter,F0i,Fp0i,S0i,pw,Dp)
+    use global
         implicit none
     
      
     !Declear all variables
  
-    real(8) :: phi1, Phi, phi2, det, dt,dt0, sigmaeq, cons, gammatot,pw,gammatoti,gammaskrank,dot, dl
-    real(8) , dimension(3,3)  :: F1, Fp1, Fp1inv, Fe1, Fetr,Fp0inv, Ctr,T0,T1,Ttr,Etr , & 
-                        id, Schmid,TS,Tint, CS, Tst, Fpint ,Rn,  Rtest,Dpc,Dp, Lb,Tagb,La0
+    real(8) :: phi1, Phi, phi2, det,dt0, sigmaeq, cons, gammatot,pw,gammatoti,gammaskrank,dot, dl
+    real(8) , dimension(3,3)  :: grad,T0 , Dp, Lb, Tagb, La0
+                        
     real(8) , dimension(3,3) :: La
     real(8) , dimension(3,3), intent(out)  :: Tag
-    real(8) , dimension(3,3,nlines) :: R, F0, Fp0,Fp0i,Fp0int,F0i,F0int, Tagc, Tagcint, Lc
+    real(8) , dimension(3,3,nlines) :: R, F0, Fp0,Fp0i,Fp0int,F0i,F0int, Tagc, Tagcint
     real(8),  dimension(nlines,12) :: s0,S0i,S0in
-    real(8) , dimension(6,12) :: slip
-    real(8) , dimension(6,6) :: Cel
     real(8) , dimension(12) :: tautr,s1,tau, consis, s0int
     real(8) , dimension(3) :: m,n
     logical, dimension(12) :: PA, Active
     logical :: consise
-    integer :: i,countera,ij, switch , numact, o,p,k,h, bryter,bakit,nlines,j,e,secit
+    integer :: i,countera,ij, switch , numact, o,p,k,h, bryter,j,e,secit
     double precision, dimension(12):: x
-    real(8), dimension(nlines,3) , intent(in) :: eul
     real(8) , dimension(4,4)  :: Jacob, Jinv
     real(8) , dimension(4)  :: sigma, offdl
     integer :: LDA = 4,NRHS = 1, Info,  minl, maxl,nit,bcond=2
@@ -274,42 +262,16 @@ subroutine taylor(La,Tag,nlines,eul,bryter,F0i,Fp0i,S0i,dt,pw,Dp)
     La0 = La
     !Define velocity gradient
     !strainrate
-    gammatot = 0
-!Copies of the input variables, in order not to update the initial condition when calculating instantaneous yield surface.
-  S0 = s0i 
-  Fp0 = Fp0i  
-  F0 = F0i  
-    !Create identity matrix
-    id = 0
-    forall(i = 1:3) id(i,i) = 1
+        gammatot = 0
+    !Copies of the input variables, in order not to update the initial condition when calculating instantaneous yield surface.
+        S0 = s0i 
+        Fp0 = Fp0i  
+        F0 = F0i  
+
+        propconst = (/0.0, 0.0, 0.0, 0.0, -10.0/)
     
-    !Elasticity tensor
-    Cel = 0
-    forall (i = 1:3) Cel(i,i)= 170*1000
-    forall (i = 4:6) Cel(i,i)= 75*1000
-    forall (i = 1:2) Cel(i+1,i) = 124*1000
-    forall (i = 1:2)  Cel(i,i+1) = 124*1000
-    Cel(3,1) = 124*1000
-    Cel(1,3) = 124*1000
     
-    ! The crystal slip systems
-    slip(1,1:12) = (/ 1/sqrt(3.0), 1/sqrt(3.0), 1/sqrt(3.0),-1/sqrt(3.0),-1/sqrt(3.0),-1/sqrt(3.0), 1/sqrt(3.0), 1/sqrt(3.0),&
-     1/sqrt(3.0),-1/sqrt(3.0), &
-    -1/sqrt(3.0),-1/sqrt(3.0)/)
-    slip(2,1:12) = (/ 1/sqrt(3.0), 1/sqrt(3.0), 1/sqrt(3.0), 1/sqrt(3.0), 1/sqrt(3.0), 1/sqrt(3.0),-1/sqrt(3.0),-1/sqrt(3.0),&
-    -1/sqrt(3.0),-1/sqrt(3.0), &
-    -1/sqrt(3.0),-1/sqrt(3.0)/)
-    slip(3,1:12) = (/ 1/sqrt(3.0), 1/sqrt(3.0), 1/sqrt(3.0), 1/sqrt(3.0), 1/sqrt(3.0), 1/sqrt(3.0), 1/sqrt(3.0), 1/sqrt(3.0),&
-     1/sqrt(3.0), 1/sqrt(3.0), 1/sqrt(3.0), 1/sqrt(3.0)/)
-    slip(4,1:12) = (/ 1/sqrt(2.0),-1/sqrt(2.0),0.0          , 1/sqrt(2.0),-1/sqrt(2.0), 0.0          , 0.0          ,-1/sqrt(2.0),&
-     1/sqrt(2.0),-1/sqrt(2.0), 1/sqrt(2.0), 0.0          /)
-    slip(5,1:12) = (/-1/sqrt(2.0), 0.0          , 1/sqrt(2.0),0.0          ,-1/sqrt(2.0), 1/sqrt(2.0),-1/sqrt(2.0),0.0          ,&
-     1/sqrt(2.0), 1/sqrt(2.0),0.0          ,-1/sqrt(2.0)/)
-    slip(6,1:12) = (/0.0          ,1/sqrt(2.0),-1/sqrt(2.0), 1/sqrt(2.0),0.0          ,-1/sqrt(2.0),-1/sqrt(2.0), 1/sqrt(2.0),&
-     0.0          , 0.0          , 1/sqrt(2.0),-1/sqrt(2.0)/)
-    
-     bakit = 0
-    !dt = dt0 
+ 
    
     if (bryter == 1 .or. bryter == 5) then
         s0(:,1:12) = 16
@@ -363,16 +325,18 @@ else if (bryter == 3 ) then
 
 
 
-gammaskrank = 0.00001
+    gammaskrank = 0.00001
  
     secit = 0
     dt0 = dt
     switch = 1
-    
-    iter: do while (switch < 5000000)     
     if (bryter == 3) then
         goto 13
     end if
+
+
+    iter: do while (switch < 5000000)     
+    
        
    
    
@@ -382,7 +346,7 @@ case (1)
     nit = 0   
     boundarycond: do  while (nit < 20)  
        ! write(*,*) La
-       call timestep(Tag, Dp, La, gammatot, gammatoti , nlines, Fp0, Fp0int, F0, F0int,R,S0in,s0,dt0, slip , Cel,x)
+       call timestep(Tag, Dp, La, gammatot, gammatoti, Fp0, Fp0int, F0, F0int,R,S0in,s0,dt0,x)
       ! write(*,*) Tag
        do h = 1,4
         sigma(h) = Tag(pos1(h),pos2(h))
@@ -406,7 +370,7 @@ case (1)
                 Lb(pos1(p),pos2(p)) = La(pos1(p),pos2(p)) + dl 
                 end if
 
-                call timestep(Tagb, Dp, Lb, gammatot, gammatoti , nlines, Fp0, Fp0int, F0, F0int,R,S0in,s0,dt0, slip , Cel,x)
+                call timestep(Tagb, Dp, Lb, gammatot, gammatoti, Fp0, Fp0int, F0, F0int,R,S0in,s0,dt0,x)
             jacob(k,p) = (Tagb(pos1(k),pos2(k))-Tag(pos1(k),pos2(k)))/dl
             end do
         end do
@@ -441,7 +405,7 @@ case (1)
    
 case (2)
     nit = 0
-   propconst = (/0.3, 0.01, 0.13, 0.9, 1./)
+   
     !La(1,1) = 1/sqrt(1.0+propconst(1)**2)
     !La(2,2) = propconst(1)**2/sqrt(1.0+propconst(1)**2)
     !La(1,2) = 0
@@ -452,18 +416,18 @@ case (2)
     !La(3,2) = 0
     !La(3,3) = -1.0/3.0*(La(1,1)+La(2,2))
    boundary2: do while (nit < 20)
-    call timestep(Tag, Dp, La, gammatot, gammatoti , nlines, Fp0, Fp0int, F0, F0int,R,S0in,s0,dt0, slip , Cel,x)
+    call timestep(Tag, Dp, La, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,R,S0in,s0,dt0,x)
     do h = 1,5
         sigma2(h) = Tag(pos1(h),pos2(h))-propconst(h)*Tag(1,1)
     end do
        !write(*,*) sigma2
     if (gammatoti > pw) then
-        write(*,*) sigma2 , Tag(1,1), Tag(2,2), gammatoti
+      !  write(*,*) sigma2 , Tag(1,1), Tag(2,2), gammatoti
     end if
          minl = minloc(sigma2, DIM = 1)
          maxl = maxloc(sigma2, DIM = 1)
          if (abs(sigma2(minl)) < 0.000000001 .and. abs(sigma2(maxl)) < 0.000000001) then
-            write(*,*) sigma2 , Tag(1,1), Tag(2,2), gammatoti
+          ! write(*,*) sigma2 , Tag(1,1), Tag(2,2), gammatoti
          !   write(*,*) tag
             exit boundary2
          end if 
@@ -477,7 +441,7 @@ case (2)
                 Lb(pos1(p),pos2(p)) = La(pos1(p),pos2(p)) + dl 
                 end if
 
-                call timestep(Tagb, Dp, Lb, gammatot, gammatoti , nlines, Fp0, Fp0int, F0, F0int,R,S0in,s0,dt0, slip , Cel,x)
+                call timestep(Tagb, Dp, Lb, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,R,S0in,s0,dt0,x)
             jacob2(k,p) = ((Tagb(pos1(k),pos2(k))-propconst(k)*Tagb(1,1))-(Tag(pos1(k),pos2(k))-propconst(k)*tag(1,1)))/dl
             end do
         end do
@@ -495,14 +459,7 @@ case (2)
         La(3,2) = La(3,2) + offdl2(3)
         La(3,3) = La(3,3) + offdl2(4)
         La(2,2) = La(2,2) + offdl2(5)
-        !write(*,*)  
-        !write(*,*) Jinv2(1,1:5)
-        !write(*,*) jinv2(2,1:5)
-        !write(*,*) jinv2(3,1:5)
-        !write(*,*) jinv2(4,1:5)
-        !write(*,*) jinv2(5,1:5)
-        !write(*,*) 
-        !write(*,*) offdl2
+      
         nit = nit+1
    end do boundary2
 end select
@@ -527,7 +484,7 @@ end select
        
         
        
-        if (gammatoti > pw .and. abs((gammatoti - pw)/pw) > 0.000000001) then
+        if (gammatoti > pw .and. abs((gammatoti - pw)/pw) > 0.00000001) then
             if (pw == 0) then
                 dt0 = dt0/2
             else
@@ -557,14 +514,31 @@ end select
             write(11,*) Tag(1,3),Tag(1,2), Tag(2,3), Tag(3,3) , dot , acos(dot), gammatot
             write(3,*) Tag(1,1), Tag(2,2), gammatot
             gammaskrank = gammaskrank + 0.00001
+            !write(8,*) Tag(1,1),Tag(2,2), Dp(1,1)/sqrt(Dp(1,1)**2+Dp(2,2)**2),Dp(2,2)/sqrt(Dp(1,1)**2+Dp(2,2)**2.)
+            write(8,*) La/norm2(La)
+            call hoshfordnormal(tag,grad)
+            
+            write(8,*) Dp/norm2(Dp)
+            write(8,*) grad/norm2(grad)
+            write(8,*) dot
+            call contract2(Dp,grad,dot)
+            write(8,*) dot/norm2(Dp)/norm2(grad)
+            call contract2(La,grad,dot)
+            write(8,*) dot/norm2(La)/norm2(grad)
+            write(8,*)
             end if
         end if 
 
-        if (abs((gammatot -pw)/pw) <= 0.000000001) then
+        if (abs((gammatot -pw)/pw) <= 0.00000001) then
             Fp0i = Fp0
             F0i  = F0
             S0i = S0   
-            exit iter
+           ! call hoshfordnormal(tag,grad)
+           ! call contract2(Dp,grad,dot)
+           ! write(*,*) dot/norm2(Dp)/norm2(grad)
+           ! write(*,*) grad
+           ! write(*,*) Dp
+           exit iter
         end if
     
     else if (bryter == 2 .or. bryter == 6) then
@@ -620,8 +594,14 @@ end select
             exit iter
 
         end if
-    else if (bryter == 3) then
+    end if 
+        switch = switch +1
+        end do iter
+       
+       
+       !For unloading, iterate a given set of timesteps backwards in order to relax the crystal
         13 continue
+       if (bryter == 3) then
         La = 0 
         La(1,1) = Tag(1,1)/sqrt(Tag(1,1)**2+Tag(2,2)**2)
         La(2,2) = Tag(2,2)/sqrt(Tag(1,1)**2+Tag(2,2)**2)
@@ -633,9 +613,9 @@ end select
         La(2,3) = 0
         La(3,2) = 0
         write(*,*) La
-        do i = 1,3
+        do i = 1,10
             
-            call timestep(Tag, Dp, -La, gammatot, gammatoti , nlines, Fp0, Fp0int, F0, F0int,R,S0in,s0,dt0, slip , Cel,x)
+            call timestep(Tag, Dp, -La, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,R,S0in,s0,dt0,x)
             write(*,*) tag
             write(*,*) x
             !if (sum(abs(x)) == 0) then 
@@ -654,51 +634,15 @@ end select
         F0i  = F0
         S0i = S0   
    
-        exit iter
-    bakit = bakit+1  
-    write(*,*) bakit 
-    write(*,*) x
-    if (bakit == 10) then
-        !write(*,*) gammatot
-        write(*,*) bakit
-        exit iter
-    end if 
-!else if (bryter == 4) then 
-!    if (gammatoti > pw .and. abs((gammatoti - pw)/pw) > 0.000000001) then
-!        if (pw == 0) then
-!            dt0 = dt0/2
-!        else
-!        dt0 = (pw-gammatot)*dt0/(gammatoti-gammatot) 
-!        end if
-!        switch = switch +1
-!        secit = secit +1
-!        if (secit > 15) then 
-!            exit iter
-!        end if 
-!        cycle iter
-!    end if 
     
-    
-!    F0 = F0int
-!    Fp0 = Fp0int
-!    Tagc = Tagcint
-!    s0 = s0in
-!    gammatot = gammatoti 
-!    
-!    if (abs((gammatot -pw)/pw)<= 0.000000001) then
-!        Fp0i = Fp0
-!        F0i  = F0
-!        S0i = S0   
-!       
- !       exit iter
-!
-!    end if
 
+    
+    write(*,*) x
+    
     end if
 
 
-    switch = switch +1
-    end do iter
+   
     !write(7,*) PA
     !write(7,*) phi1, Phi, phi2 
     !end do !l 
@@ -713,8 +657,8 @@ end select
 
 
 
-subroutine timestep(Tag, Dp, La, gammatot, gammatoti , nlines, Fp0, Fp0int, F0, F0int,R,S0in,s0,dt0, slip,Cel,x )
-    
+subroutine timestep(Tag, Dp, La, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,R,S0in,s0,dt0,x )
+    use global
       !use setparam
     implicit none
     
@@ -723,18 +667,16 @@ subroutine timestep(Tag, Dp, La, gammatot, gammatoti , nlines, Fp0, Fp0int, F0, 
  
     real(8) :: phi1, Phi, phi2, det,dt0, cons, gammatot,gammatoti
     real(8) , dimension(3,3)  :: F1, Fp1, Fp1inv, Fe1, Fetr,Fp0inv, Ctr,T1,Ttr,Etr , & 
-                        id, Schmid,TS,Tint, CS, Tst, Fpint ,Rn,  Rtest,Dpc,Dp
+                         Schmid,TS,Tint, CS, Tst, Fpint ,Rn,  Rtest,Dpc,Dp
     real(8) , dimension(3,3), intent(in)  :: La
     real(8) , dimension(3,3), intent(out)  :: Tag
     real(8) , dimension(3,3,nlines) :: R, F0, Fp0,Fp0int,F0int, Tagcint, Lc
     real(8),  dimension(nlines,12) :: s0,S0in
-    real(8) , dimension(6,12) :: slip
-    real(8) , dimension(6,6) :: Cel
     real(8) , dimension(12) :: tautr,s1,tau, consis, s0int
     real(8) , dimension(3) :: m,n
     logical, dimension(12) :: PA, Active
     logical :: consise
-    integer :: i,countera,ij, switch , numact, o,nlines,j,secit
+    integer :: i,countera,ij, switch , numact, o,j,secit
     double precision, dimension(12):: x
  
     !Create identity matrix
@@ -1393,24 +1335,6 @@ subroutine POLAR(F,R)
 return
 end subroutine POLAR
 
-Subroutine countlin(filename,nlines)
-    implicit none
-    character(len=*)    :: filename
-    integer             :: nlines 
-    integer             :: io
-  
-    open(10,file=filename, iostat=io, status='old')
-    if (io/=0) stop 'Cannot open file! '
-  
-    nlines = 0
-    do
-      read(10,*,iostat=io)
-      if (io/=0) exit
-      nlines = nlines + 1
-    end do
-    close(10)
-    return
-end subroutine countlin
 
 subroutine eqvstr(T,sigmaeq)
     implicit none
@@ -1519,15 +1443,100 @@ return
 end subroutine contract2
 
 
-subroutine hoshfordnormal(Tag, n)
-    !Subroutine for calculation of the normal direction of the Hoshford/Hersey yield surface ie it calculates the gradient of the Lp norm
+subroutine hoshfordnormal(Tag,grad)
+    !Subroutine for calculation of the normal direction of the Hoshford/Hersey yield surface
+    ! The method is adapted from Barlat et al (1991) "A six-component yield function for anisotropic materials"
+    ! Since the hoshford/Hersey yield surface is given in principle stresses, the eigenvalue problem has to be analytically solved in order to calculate the gradient directly
+    ! The partial derivatives of A,B,C,F,G,H with respect to the six stress comp
 
     implicit none 
-    real(8), dimension(3,3) :: A, Tag, n, VL,VR
-    real(8), dimension(3) :: WR,WI
-    real(8), dimension(1000) :: work
-    integer :: LDA = 3, LWORK = 1000, INFO
+    real(8), dimension(3,3) :: Tag, grad
+    real(8) :: A, B, C, F, G, H, dI2,dI3, dtheta, I2, I3, theta, m = 8.8 , dsum, PI=4.D0*DATAN(1.D0),sum
+    real(8) , dimension(6,6) :: partials
+    integer :: LDA = 3, LWORK = 1000, INFO, i , j
+    real(8) , dimension(6) :: n
+    
 
-    call dgeev('N','V',LDA,Tag,LDA,WR,WI,VL,LDA,VR,LDA,WORK,LWORK,INFO)
+    n = 0 
+   
+    partials(1,1:6) = (/  0.0 , -1.0,  1.0,  0.0,  0.0,  0.0/)
+    partials(2,1:6) = (/  1.0 ,  0.0, -1.0,  0.0,  0.0,  0.0/)
+    partials(3,1:6) = (/ -1.0 ,  1.0,  0.0,  0.0,  0.0,  0.0/)
+    partials(4,1:6) = (/  0.0 ,  0.0,  0.0,  1.0,  0.0,  0.0/)
+    partials(4,1:6) = (/  0.0 ,  0.0,  0.0,  0.0,  1.0,  0.0/)
+    partials(6,1:6) = (/  0.0 ,  0.0,  0.0,  0.0,  0.0,  1.0/)
 
+    A = tag(2,2)-tag(3,3)
+    B = tag(3,3)-tag(1,1)
+    C = tag(1,1)-tag(2,2)
+    F = tag(2,3)
+    G = tag(1,3)
+    H = tag(1,2)
+    I2 = (F**2+G**2+H**2)/3. + ((A-C)**2+(C-B)**2+(B-A)**2)/54.
+    I3 = ((C-B)*(A-C)*(B-A))/54 + F*G*H - ((C-B)*F**2+(A-C)*G**2+(B-A)*H**2)/6
+    theta = acos(I3/I2**(3./2.))
+    sum = ((2*cos((2*theta+pi)/6.))**(m))+((2*cos((2*theta -  3*pi)/6.))**(m)) + ((-2*cos((2*theta +  5*pi)/6.))**(m))
+    
+    do i = 1,6
+        dI2 = 2./3.*(F*partials(i,4)+G*partials(i,5)+H*partials(i,6)) &
+        +2./54.*((A-C)*(partials(i,1)-partials(i,3))) &
+        +2./54.*((C-B)*(partials(i,3)-partials(i,2))) &
+        +2./54.*((B-A)*(partials(i,2)-partials(i,1)))
+        
+
+        dI3 = 1./54.*((partials(i,3)-partials(i,2))*(A-C)*(B-A) & 
+        + ((partials(i,1)-partials(i,3))*(B-A)+(A-C)*(partials(i,2)-partials(i,1)))*(C-B)) &
+        + partials(i,4)*G*H + F*partials(i,5)*H + F*H*partials(i,6) &
+        - (2*F/6*partials(i,4)*(C-B)+F**2/6*(partials(i,3)-partials(i,2))) &
+        - (2*G/6*partials(i,5)*(A-C)+G**2/6*(partials(i,1)-partials(i,3))) &
+        - (2*H/6*partials(i,6)*(B-A)+H**2/6*(partials(i,2)-partials(i,1))) 
+
+        dtheta = -1/sqrt(1-I3**2/I2**3)*(dI3*I2**(3./2.)-3./2.*I2**(1./2.)*dI2*I3)/I2**3
+        
+        dsum = m*dtheta* &
+        (  ( 2*cos((2*theta +   pi)/6.))**(m-1) * (-4./6.*sin((2*theta +   pi)/6)) &
+         + ( 2*cos((2*theta - 3*pi)/6.))**(m-1) * (-4./6.*sin((2*theta - 3*pi)/6.)) &
+         + (-2*cos((2*theta + 5*pi)/6.))**(m-1) * ( 4./6.*sin((2*theta + 5*pi)/6)))
+    
+        n(i) = m/2*3**(m/2.)*I2**(m/2.-1.)*dI2*sum+(3*I2)**(m/2.)*dsum
+
+    end do
+       n = n/norm2(n)
+!write(*,*) n/norm2(n)
+!write(8,*) tag(1,1), tag(2,2), n(1), n(2)
+call vec2tens(grad,n)
+return
 end subroutine hoshfordnormal
+
+!! CONVERTS A SYMETRIC TENSOR INTO A VECTOR
+!!
+subroutine tens2vec(T,v)
+    implicit none 
+    real(8), intent(in), dimension(3,3) :: T
+    real(8), intent(out), dimension(6) :: v
+
+    v(1:6) = (/ T(1,1),T(2,2), T(3,3),T(1,2), T(1,3),&
+                T(2,3) /)
+
+return
+end subroutine tens2vec
+
+!! CONVERTS A VECTOR INTO A SYMMETRIC TENSOR
+!!
+subroutine vec2tens(T,v)
+    implicit none 
+    real(8), intent(out), dimension(3,3) :: T
+    real(8), intent(in), dimension(6) :: v
+
+T(1,1) = v(1)
+T(2,2) = v(2)
+T(3,3) = v(3)
+T(2,3) = v(4)
+T(3,2) = v(4)
+T(1,3) = v(5)
+T(3,1) = v(5)
+T(1,2) = v(6)
+T(2,1) = v(6)
+
+return
+end subroutine vec2tens
