@@ -2,17 +2,19 @@ program ypoint
 use global
     implicit none
 
-integer :: part,bryter
+integer :: part,bryter, k
 real(8) :: t1,t2,omp_get_wtime,pw1,pw2
 !real(8) , dimension(:,:), Allocatable ::eul
 real(8) , dimension(:,:,:), Allocatable  :: F0,Fp0
 real(8),  dimension(:,:), Allocatable :: S0
-
+real(8), dimension(6,6) :: Chook
 t1 = omp_get_wtime()
 open(unit=11,file="result.txt",status='replace')
 open(unit=3,file="Stress.txt",status='replace')
 open(unit=8,file="eulerangles.txt",status='replace')
 open(unit=13,file="Dp.txt",status='replace')
+open(unit=14,file="Dp2.txt",status='replace')
+open(unit=16,file="Grad.txt",status='replace')
 call init()
 write(*,*) nlines
 
@@ -33,27 +35,33 @@ Allocate(s0(nlines,12))
 !!!   bryter = 4 - Used for strain path change, takes a prestrained crystal(F0,Fp0,S0) calculated using eg bryter = 1, and perform strain in a prescribed direction for a given plastic work. 
 
 
-pw1 = 0.001
-bryter = 5
-call newton(2,5,bryter,F0,Fp0,S0,pw1)   
+
+
+
+
+!pw1 = 0.003
+!bryter = 7
+!call newton(1,2,bryter,F0,Fp0,S0,pw1) 
+!write(*,*) bryter
+
 !bryter = 6
-!pw1 = 0.001
-!call newton(0,3,nlines,eul,bryter,F0i,Fp0i,S0i,pw1)   
+!pw1 = 0.003
+!call newton(0,3,bryter,F0,Fp0,S0,pw1)   
 !write(*,*) 'check1'
 !F0 = F0i
 !S0 = S0i
 !Fp0 = Fp0i
-pw2 = 0.001
+pw2 = 0.003
 part = 200
 call OMP_SET_NUM_THREADS(7)
-!!$OMP PARALLEL PRIVATE(k,F0i,S0i,Fp0i,bryter)
-!!$OMP DO
-!do k = 0,2*part
-!    bryter = 7
-!    call newton(k,part,nlines,eul,bryter,F0i,Fp0i,S0i,pw2)
-!end do
-!!$OMP END DO NOWAIT
-!!$OMP END PARALLEL
+!$OMP PARALLEL PRIVATE(k,F0i,S0i,Fp0i,bryter)
+!$OMP DO
+do k = 0,2*part
+    bryter = 7
+    call newton(k,part,bryter,F0,Fp0,S0,pw2)
+end do
+!$OMP END DO NOWAIT
+!$OMP END PARALLEL
 
 
 
@@ -110,12 +118,9 @@ subroutine newton(k,part,bryter,F0i,Fp0i,S0i,pw)
     use global
     implicit none
 real(8) , dimension(3,3)  :: La, Tag, Dp
-real(8) , dimension(4,4)  :: Jacob, Jinv
-real(8) , dimension(4)  :: sigma, offdl
-real(8) :: epsilon, jacobidel, l,pw
-integer :: i, j , LDA = 4,NRHS = 1, Info, k, minl, maxl, part,omp_get_thread_num,teller,bry
+real(8) :: pw
+integer ::  k, part,teller,bry
 integer  :: bryter
-integer , dimension(4) ::pos1, pos2, IPIV
 !real(8), dimension(nlines,3), intent(in) :: eul
 real(8) , dimension(3,3,nlines)  :: Fp0i,F0i
 real(8),  dimension(nlines,12) :: S0i
@@ -136,13 +141,8 @@ end if
 
 
 
-offdl = 0
-epsilon = 0.0000001
-pos1 = (/1, 1, 2, 3/)
-pos2 =(/2, 3, 3, 3/)
 
 
-10 CONTINUE
 teller = 0
 
 !Initialize La
@@ -151,12 +151,12 @@ La = 0
 La(1,1) = cos(pi*k/part)
 La(2,2) = sin(pi*k/part)
 La(3,3) =-0.3*(La(1,1)+La(2,2))
-La(1,2) = offdl(1)
-La(2,1) = offdl(1)
-La(1,3) = offdl(2)
-La(3,1) = offdl(2)
-La(2,3) = offdl(3)
-La(3,2) = offdl(3)
+La(1,2) = 0
+La(2,1) = 0
+La(1,3) = 0
+La(3,1) = 0
+La(2,3) = 0
+La(3,2) = 0
 
     call taylor(La,Tag,bryter,F0i,Fp0i,S0i,pw,Dp)
 
@@ -187,38 +187,6 @@ if (bry == 5) then
     end if
 end subroutine newton
 
-subroutine centraldiff(La,jacobidel,epsilon, pos1l, pos2l,pos1T,pos2T,nlines,eul,bryter,F0i,Fp0i,s0i,dt,pw,Dp)
-    implicit none
-    real(8) , dimension(3,3)  :: La, Tag1, Tag2, Laint1, Laint2, Dp
-    real(8), intent(in) :: epsilon , dt,pw
-    real(8), intent(out) :: Jacobidel
-    integer, intent(in) :: pos1l,pos2l,pos1T,pos2T,nlines,bryter
-    real(8), dimension(nlines,3), intent(in) :: eul
-    real(8) , dimension(3,3,nlines)  :: Fp0i,F0i
-    real(8),  dimension(nlines,12) :: S0i
-
-    Laint1 = La
-    Laint2 = La
-    if (pos1l /= pos2l) then
-    Laint1(pos1l,pos2l) = Laint1(pos1l,pos2l)+epsilon
-    Laint2(pos1l,pos2l) = Laint2(pos1l,pos2l)-epsilon
-    Laint1(pos2l,pos1l) = Laint1(pos1l,pos2l)+epsilon
-    Laint2(pos2l,pos1l) = Laint2(pos1l,pos2l)-epsilon
-    else if (pos1l == pos2l) then 
-        Laint1(pos1l,pos2l) = Laint1(pos1l,pos2l)+epsilon 
-        Laint2(pos1l,pos2l) = Laint2(pos1l,pos2l)-epsilon
-    end if      
-    Call taylor(Laint1,Tag1,bryter,F0i,Fp0i,S0i,pw,Dp)
-    call taylor(Laint2,Tag2,bryter,F0i,Fp0i,S0i,pw,Dp)
-
-    jacobidel = (Tag1(pos1T,pos2T)-Tag2(pos1T,pos2T))/(2*epsilon)
-    return
-end subroutine centraldiff
-
-
-
-
-
 
 subroutine taylor(La,Tag,bryter,F0i,Fp0i,S0i,pw,Dp)
     use global
@@ -227,38 +195,29 @@ subroutine taylor(La,Tag,bryter,F0i,Fp0i,S0i,pw,Dp)
      
     !Declear all variables
  
-    real(8) :: phi1, Phi, phi2, det,dt0, sigmaeq, cons, gammatot,pw,gammatoti,gammaskrank,dot, dl
-    real(8) , dimension(3,3)  :: grad,T0 , Dp, Lb, Tagb, La0
+    real(8) :: phi1, Phi, phi2,dt0, sigmaeq, gammatot,pw,gammatoti,gammaskrank,dot, dl
+    real(8) , dimension(3,3)  :: grad,T0 , Dp, Lb, Tagb, La0,Dp2
                         
     real(8) , dimension(3,3) :: La
     real(8) , dimension(3,3), intent(out)  :: Tag
-    real(8) , dimension(3,3,nlines) :: R, F0, Fp0,Fp0i,Fp0int,F0i,F0int, Tagc, Tagcint
+    real(8) , dimension(3,3,nlines) ::  F0, Fp0,Fp0i,Fp0int,F0i,F0int, Tagc, Tagcint
     real(8),  dimension(nlines,12) :: s0,S0i,S0in
-    real(8) , dimension(12) :: tautr,s1,tau, consis, s0int
-    real(8) , dimension(3) :: m,n
-    logical, dimension(12) :: PA, Active
-    logical :: consise
-    integer :: i,countera,ij, switch , numact, o,p,k,h, bryter,j,e,secit
-    double precision, dimension(12):: x
+    integer :: i, switch , o,p,k,h, bryter,secit
     real(8) , dimension(4,4)  :: Jacob, Jinv
     real(8) , dimension(4)  :: sigma, offdl
-    integer :: LDA = 4,NRHS = 1, Info,  minl, maxl,nit,bcond=2
+    integer :: LDA = 4,NRHS = 1, Info,  minl, maxl,nit,bcond=1
     integer , dimension(4) :: IPIV
     real(8), dimension(5) :: propconst, offdl2, sigma2, IPIV2
     real(8) , dimension(5,5)  :: Jacob2, Jinv2
     integer, dimension(5) :: pos1, pos2
-    !call countlin('euleranglesin2.txt',nlines)
-    !open(unit=7,file="result.txt",status='replace')  ! outputfile used for testing. 
-    !open(unit=8,file="eulerangles.txt",status='replace')
-    !open(unit=10,file="Stress.txt",status='replace')
-    !open(unit=9,file="euleranglesin2.txt",status='old')
+    
 
     !Timeincrement
     !dt0 = 0.0000001
 
     pos1 = (/1, 1, 2, 3, 2/)
     pos2 =(/2, 3, 3, 3, 2/)
-    dl = 0.00001
+    dl = 0.0000001
     La0 = La
     !Define velocity gradient
     !strainrate
@@ -344,17 +303,17 @@ Select case (bcond)
 case (1)    
 !!! Iteration to ensure boundary condition is satisfied at througout all timesteps. 
     nit = 0   
-    boundarycond: do  while (nit < 20)  
+    boundarycond: do  while (nit < 10)  
        ! write(*,*) La
-       call timestep(Tag, Dp, La, gammatot, gammatoti, Fp0, Fp0int, F0, F0int,R,S0in,s0,dt0,x)
-      ! write(*,*) Tag
+       call timestep(Tag, Dp, La, gammatot, gammatoti, Fp0, Fp0int, F0, F0int,S0in,s0,dt0)
+       !write(*,*) sigma , Tag(1,1), Tag(2,2), gammatoti
        do h = 1,4
         sigma(h) = Tag(pos1(h),pos2(h))
        end do
       ! write(*,*) sigma
          minl = minloc(sigma, DIM = 1)
          maxl = maxloc(sigma, DIM = 1)
-         if (abs(sigma(minl)) < 0.000000001 .and. abs(sigma(maxl)) < 0.000000001) then
+         if (abs(sigma(minl)) < 0.0000001 .and. abs(sigma(maxl)) < 0.0000001) then
             
          !   write(*,*) tag
             exit boundarycond
@@ -370,7 +329,7 @@ case (1)
                 Lb(pos1(p),pos2(p)) = La(pos1(p),pos2(p)) + dl 
                 end if
 
-                call timestep(Tagb, Dp, Lb, gammatot, gammatoti, Fp0, Fp0int, F0, F0int,R,S0in,s0,dt0,x)
+                call timestep(Tagb, Dp, Lb, gammatot, gammatoti, Fp0, Fp0int, F0, F0int,S0in,s0,dt0)
             jacob(k,p) = (Tagb(pos1(k),pos2(k))-Tag(pos1(k),pos2(k)))/dl
             end do
         end do
@@ -388,12 +347,6 @@ case (1)
         La(3,2) = La(3,2) + offdl(3)
         La(3,3) = La(3,3) + offdl(4)
         
-        !write(*,*)  
-        !write(*,*) jacob(1,1:4)
-        !write(*,*) jacob(2,1:4)
-        !write(*,*) jacob(3,1:4)
-        !write(*,*) jacob(4,1:4)
-        !write(*,*) 
         minl = minloc(sigma, DIM = 1)
         maxl = maxloc(sigma, DIM = 1)
        
@@ -416,18 +369,18 @@ case (2)
     !La(3,2) = 0
     !La(3,3) = -1.0/3.0*(La(1,1)+La(2,2))
    boundary2: do while (nit < 20)
-    call timestep(Tag, Dp, La, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,R,S0in,s0,dt0,x)
+    call timestep(Tag, Dp, La, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,S0in,s0,dt0)
     do h = 1,5
         sigma2(h) = Tag(pos1(h),pos2(h))-propconst(h)*Tag(1,1)
     end do
-       !write(*,*) sigma2
+      ! write(*,*) sigma2
     if (gammatoti > pw) then
       !  write(*,*) sigma2 , Tag(1,1), Tag(2,2), gammatoti
     end if
          minl = minloc(sigma2, DIM = 1)
          maxl = maxloc(sigma2, DIM = 1)
-         if (abs(sigma2(minl)) < 0.000000001 .and. abs(sigma2(maxl)) < 0.000000001) then
-          ! write(*,*) sigma2 , Tag(1,1), Tag(2,2), gammatoti
+         if (abs(sigma2(minl)) < 0.0000001 .and. abs(sigma2(maxl)) < 0.0000001) then
+           write(*,*) sigma2 , Tag(1,1), Tag(2,2), gammatoti
          !   write(*,*) tag
             exit boundary2
          end if 
@@ -441,7 +394,7 @@ case (2)
                 Lb(pos1(p),pos2(p)) = La(pos1(p),pos2(p)) + dl 
                 end if
 
-                call timestep(Tagb, Dp, Lb, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,R,S0in,s0,dt0,x)
+                call timestep(Tagb, Dp, Lb, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,S0in,s0,dt0)
             jacob2(k,p) = ((Tagb(pos1(k),pos2(k))-propconst(k)*Tagb(1,1))-(Tag(pos1(k),pos2(k))-propconst(k)*tag(1,1)))/dl
             end do
         end do
@@ -484,7 +437,7 @@ end select
        
         
        
-        if (gammatoti > pw .and. abs((gammatoti - pw)/pw) > 0.00000001) then
+        if (gammatoti > pw .and. abs((gammatoti - pw)/pw) > 0.00001) then
             if (pw == 0) then
                 dt0 = dt0/2
             else
@@ -509,42 +462,62 @@ end select
         
         if (bryter == 5) then
             if (gammatot > gammaskrank) then
+                write(8,*) bryter, gammatoti
                 call contract2(La,Dp,dot)
                 dot = dot/norm2(La)/norm2(Dp)
             write(11,*) Tag(1,3),Tag(1,2), Tag(2,3), Tag(3,3) , dot , acos(dot), gammatot
-            write(3,*) Tag(1,1), Tag(2,2), gammatot
+            
             gammaskrank = gammaskrank + 0.00001
             !write(8,*) Tag(1,1),Tag(2,2), Dp(1,1)/sqrt(Dp(1,1)**2+Dp(2,2)**2),Dp(2,2)/sqrt(Dp(1,1)**2+Dp(2,2)**2.)
+            write(8,*) 'La'
             write(8,*) La/norm2(La)
             call hoshfordnormal(tag,grad)
-            
+            write(8,*) 'Dp'
             write(8,*) Dp/norm2(Dp)
+            write(8,*) 'Gradient'
             write(8,*) grad/norm2(grad)
+            write(8,*) 'Dp-Yoshida'
+            call Yoshidamodel(Tag,La,Dp2)
+            write(8,*) Dp2/norm2(Dp2)
+            write(8,*) 'Dp:La'
             write(8,*) dot
             call contract2(Dp,grad,dot)
+            write(8,*) 'Dp:Grad'
             write(8,*) dot/norm2(Dp)/norm2(grad)
+            write(8,*) 'La:Grad'
             call contract2(La,grad,dot)
             write(8,*) dot/norm2(La)/norm2(grad)
+           
+            
+            call contract2(Dp,Dp2,dot)
+            write(8,*) 'Dp:DpY'
+            write(8,*) dot/norm2(Dp2)/norm2(Dp)
             write(8,*)
+            write(8,*)
+
+            write(13,*) Tag(1,1), Tag(2,2), Dp(1,1)  /sqrt(  Dp(1,1)**2+Dp(2,2)**2),Dp(2,2)/sqrt(Dp(1,1)**2+Dp(2,2)**2)
+            write(14,*) Tag(1,1), Tag(2,2), Dp2(1,1) /sqrt( Dp2(1,1)**2+Dp2(2,2)**2), Dp2(2,2)/sqrt(Dp2(1,1)**2+Dp2(2,2)**2)
+            write(16,*) Tag(1,1), Tag(2,2), Grad(1,1)/sqrt(Grad(1,1)**2+Grad(2,2)**2),Grad(2,2)/sqrt(Grad(1,1)**2+Grad(2,2)**2)
             end if
         end if 
 
-        if (abs((gammatot -pw)/pw) <= 0.00000001) then
+        if (abs((gammatot -pw)/pw) <= 0.00001) then
             Fp0i = Fp0
             F0i  = F0
             S0i = S0   
+            call Yoshidamodel(Tag,La,Dp2)
            ! call hoshfordnormal(tag,grad)
            ! call contract2(Dp,grad,dot)
            ! write(*,*) dot/norm2(Dp)/norm2(grad)
            ! write(*,*) grad
-           ! write(*,*) Dp
+           !write(*,*) Dp
            exit iter
         end if
     
     else if (bryter == 2 .or. bryter == 6) then
         
         if (pw /= 0) then
-        if (gammatoti > pw .and. abs((gammatoti - pw)/pw) > 0.000000001) then
+        if (gammatoti > pw .and. abs((gammatoti - pw)/pw) > 0.00000001) then
             if (pw == 0) then
                 dt0 = dt0/2
             else
@@ -560,12 +533,12 @@ end select
         end if
 
         if (pw == 0) then
-            if (gammatoti > pw .and. abs(gammatoti) > 0.000000001) then
+            if (gammatoti > pw .and. abs(gammatoti) > 0.00000001) then
             dt0 = dt0/2
             !dt0 = (pw-gammatot)*dt0/(gammatoti-gammatot) 
             switch = switch +1
             secit = secit +1
-            if (secit > 30) then 
+            if (secit > 10) then 
                 exit iter
             end if 
             cycle iter
@@ -580,10 +553,42 @@ end select
 
         if (bryter == 6) then
             if (gammatot > gammaskrank) then
+                write(8,*) bryter, gammatoti
                 call contract2(La,Dp,dot)
                 dot = dot/norm2(La)/norm2(Dp)
             write(11,*) Tag(1,3),Tag(1,2), Tag(2,3), Tag(3,3) , dot , acos(dot), gammatot
-            gammaskrank = gammaskrank + 0.00001
+          
+            gammaskrank = gammaskrank + 0.000005
+            !write(8,*) Tag(1,1),Tag(2,2), Dp(1,1)/sqrt(Dp(1,1)**2+Dp(2,2)**2),Dp(2,2)/sqrt(Dp(1,1)**2+Dp(2,2)**2.)
+            write(8,*) 'La'
+            write(8,*) La/norm2(La)
+            call hoshfordnormal(tag,grad)
+            write(8,*) 'Dp'
+            write(8,*) Dp/norm2(Dp)
+            write(8,*) 'Gradient'
+            write(8,*) grad/norm2(grad)
+            write(8,*) 'Dp-Yoshida'
+            call Yoshidamodel(Tag,La,Dp2)
+            write(8,*) Dp2/norm2(Dp2)
+            write(8,*) 'Dp:La'
+            write(8,*) dot
+            call contract2(Dp,grad,dot)
+            write(8,*) 'Dp:Grad'
+            write(8,*) dot/norm2(Dp)/norm2(grad)
+            write(8,*) 'La:Grad'
+            call contract2(La,grad,dot)
+            write(8,*) dot/norm2(La)/norm2(grad)
+           
+            
+            call contract2(Dp,Dp2,dot)
+            write(8,*) 'Dp:DpY'
+            write(8,*) dot/norm2(Dp2)/norm2(Dp)
+            write(8,*)
+            write(8,*)
+
+            write(13,*) Tag(1,1), Tag(2,2), Dp(1,1)  /sqrt(  Dp(1,1)**2+Dp(2,2)**2),Dp(2,2)/sqrt(Dp(1,1)**2+Dp(2,2)**2)
+            write(14,*) Tag(1,1), Tag(2,2), Dp2(1,1) /sqrt( Dp2(1,1)**2+Dp2(2,2)**2), Dp2(2,2)/sqrt(Dp2(1,1)**2+Dp2(2,2)**2)
+            write(16,*) Tag(1,1), Tag(2,2), Grad(1,1)/sqrt(Grad(1,1)**2+Grad(2,2)**2),Grad(2,2)/sqrt(Grad(1,1)**2+Grad(2,2)**2)
             end if
         end if 
         
@@ -601,23 +606,22 @@ end select
        
        !For unloading, iterate a given set of timesteps backwards in order to relax the crystal
         13 continue
-       if (bryter == 3) then
-        La = 0 
-        La(1,1) = Tag(1,1)/sqrt(Tag(1,1)**2+Tag(2,2)**2)
-        La(2,2) = Tag(2,2)/sqrt(Tag(1,1)**2+Tag(2,2)**2)
-        La(3,3) =-0.3*(La(1,1)+La(2,2))
-        La(1,2) =0
-        La(2,1) = 0
-        La(1,3) = 0
-        La(3,1) = 0
-        La(2,3) = 0
-        La(3,2) = 0
-        write(*,*) La
+        if (bryter == 3) then
+            La = 0 
+            La(1,1) = Tag(1,1)/sqrt(Tag(1,1)**2+Tag(2,2)**2)
+            La(2,2) = Tag(2,2)/sqrt(Tag(1,1)**2+Tag(2,2)**2)
+            La(3,3) =-0.3*(La(1,1)+La(2,2))
+            La(1,2) =0
+            La(2,1) = 0
+            La(1,3) = 0
+            La(3,1) = 0
+            La(2,3) = 0
+            La(3,2) = 0
+       
         do i = 1,10
             
-            call timestep(Tag, Dp, -La, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,R,S0in,s0,dt0,x)
-            write(*,*) tag
-            write(*,*) x
+            call timestep(Tag, Dp, -La, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,S0in,s0,dt0)
+            
             !if (sum(abs(x)) == 0) then 
             F0 = F0int
             Fp0 = Fp0int
@@ -633,36 +637,20 @@ end select
         Fp0i = Fp0
         F0i  = F0
         S0i = S0   
-   
-    
-
-    
-    write(*,*) x
-    
-    end if
+  
+        end if
 
 
-   
-    !write(7,*) PA
-    !write(7,*) phi1, Phi, phi2 
-    !end do !l 
-    !end do !p
-    !close(9,STATUS='keep')
-    !close(7,status='keep')
-    !close(8,status='keep')
+
     return
     end subroutine taylor
 
 
 
-
-
-subroutine timestep(Tag, Dp, La, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,R,S0in,s0,dt0,x )
+subroutine timestep(Tag, Dp, La, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,S0in,s0,dt0)
     use global
-      !use setparam
     implicit none
     
-     
     !Declear all variables
  
     real(8) :: phi1, Phi, phi2, det,dt0, cons, gammatot,gammatoti
@@ -670,25 +658,21 @@ subroutine timestep(Tag, Dp, La, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,R,
                          Schmid,TS,Tint, CS, Tst, Fpint ,Rn,  Rtest,Dpc,Dp
     real(8) , dimension(3,3), intent(in)  :: La
     real(8) , dimension(3,3), intent(out)  :: Tag
-    real(8) , dimension(3,3,nlines) :: R, F0, Fp0,Fp0int,F0int, Tagcint, Lc
+    real(8) , dimension(3,3,nlines) ::   Tagcint, Lc
+    real(8) , dimension(3,3,nlines), intent(in) :: F0, Fp0
+    real(8) , dimension(3,3,nlines), intent(out) :: F0int, Fp0int
     real(8),  dimension(nlines,12) :: s0,S0in
     real(8) , dimension(12) :: tautr,s1,tau, consis, s0int
     real(8) , dimension(3) :: m,n
     logical, dimension(12) :: PA, Active
     logical :: consise
-    integer :: i,countera,ij, switch , numact, o,j,secit
+    integer :: i,countera,ij, numact,j
     double precision, dimension(12):: x
- 
-    !Create identity matrix
-    id = 0
-    forall(i = 1:3) id(i,i) = 1
-    
     
     Tag = 0
-  
-    
     Dp = 0
     gammatoti = gammatot
+    
     grains: do j = 1,nlines   !Iterate over all grains                                                                                                                                                                                   
     !integrate velocity gradient to form deformation gradient
      ! Rotate velocity gradient to crystal coordinate 
@@ -726,7 +710,7 @@ subroutine timestep(Tag, Dp, La, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,R,
     Active = PA
     s0int = s0(j,1:12)
     if (count(PA) > 0) then
-    call sincr(Active,x,tautr,s0int,Ctr,Cel,slip,phi1,Phi,phi2) 
+    call sincr(Active,x,tautr,s0int,Ctr) 
     end if 
     
     !step 6, Update plastic deformation gradient
@@ -914,7 +898,6 @@ real(8), dimension(3,3),intent(out) :: Schmid
 real(8), dimension(6,12), intent(in) :: slip
 integer :: snum, h, p
 real(8), dimension(3), intent(out) :: m , n 
-real(8) :: l = 2.0, k = 3.0
 !Declear all parameters used inside the subroutine
 
 
@@ -930,40 +913,6 @@ m = slip(4:6,snum)
     end do
 return
 end subroutine slipsys
-
-subroutine minv3(A,B)
-    !! Performs a direct calculation of the inverse of a 3×3 matrix.
-    real(8), dimension(3,3)  :: A   !! Matrix
-    real(8), dimension(3,3)             :: B  !! Inverse matrix
-    real(8)            :: detinv
-
-    ! Calculate the inverse determinant of the matrix
-    detinv = 1/(A(1,1)*A(2,2)*A(3,3) - A(1,1)*A(2,3)*A(3,2)&
-              - A(1,2)*A(2,1)*A(3,3) + A(1,2)*A(2,3)*A(3,1)&
-              + A(1,3)*A(2,1)*A(3,2) - A(1,3)*A(2,2)*A(3,1))
-
-    ! Calculate the inverse of the matrix
-    B(1,1) = +detinv * (A(2,2)*A(3,3) - A(2,3)*A(3,2))
-    B(2,1) = -detinv * (A(2,1)*A(3,3) - A(2,3)*A(3,1))
-    B(3,1) = +detinv * (A(2,1)*A(3,2) - A(2,2)*A(3,1))
-    B(1,2) = -detinv * (A(1,2)*A(3,3) - A(1,3)*A(3,2))
-    B(2,2) = +detinv * (A(1,1)*A(3,3) - A(1,3)*A(3,1))
-    B(3,2) = -detinv * (A(1,1)*A(3,2) - A(1,2)*A(3,1))
-    B(1,3) = +detinv * (A(1,2)*A(2,3) - A(1,3)*A(2,2))
-    B(2,3) = -detinv * (A(1,1)*A(2,3) - A(1,3)*A(2,1))
-    B(3,3) = +detinv * (A(1,1)*A(2,2) - A(1,2)*A(2,1))
-    return
-end subroutine minv3
-
-subroutine deter(A,det)  ! Subroutine to calculate determinant of a 3x3 matrix. 
-!Declear variables
-    real(8), dimension(3,3),intent(in) :: A
-    real(8), intent(out) :: det
-
-    det = A(1,1)*(A(2,2)*A(3,3)-A(2,3)*A(3,2))-A(1,2)*(A(2,1)*A(3,3)-A(2,3)*A(3,1))+A(1,3)*(A(2,1)*A(3,2)-A(2,2)*A(3,1))
-return
-end subroutine deter
-
 
 subroutine hparam(alpha, beta, s0, h,slip) !subroutine for determination of hardening moduli
     !Declear varialbles 
@@ -993,44 +942,13 @@ subroutine hparam(alpha, beta, s0, h,slip) !subroutine for determination of hard
 return
 end subroutine hparam
 
-subroutine Acoeff(alpha,beta, Ctr, coeff,Cel,slip)
-!Declear variables
-    integer, intent(in) :: alpha, beta
-    real(8), dimension(3,3),intent(in) :: Ctr
-    real(8), dimension(3,3) :: Salpha, Sbeta, rm, csv, tot
-    real(8), dimension(3) :: m,n
-    real(8), dimension(6,6),intent(in) :: Cel
-    real(8), dimension(6,12),intent(in) :: slip
-    real(8), dimension(6) :: CS
-    real(8), intent(out) :: coeff
-!Computation
-    
-    Call slipsys(slip,Salpha,m,n,alpha)
-    Call slipsys(slip,Sbeta,m,n,beta)
-    csv = matmul(Ctr,Sbeta)
-    csv = (csv+transpose(csv))/2
-    CS = (/csv(1,1),csv(2,2),csv(3,3),csv(2,3),csv(1,3),csv(1,2)/)
-    rm(1,1) = DOT_PRODUCT(Cel(1,1:6),CS)
-    rm(2,2) = DOT_PRODUCT(Cel(2,1:6),CS)
-    rm(3,3) = DOT_PRODUCT(Cel(3,1:6),CS)
-    rm(1,2) = DOT_PRODUCT(Cel(6,1:6),CS)
-    rm(2,1) = DOT_PRODUCT(Cel(6,1:6),CS)
-    rm(1,3) = DOT_PRODUCT(Cel(5,1:6),CS)
-    rm(3,1) = DOT_PRODUCT(Cel(5,1:6),CS)
-    rm(3,2) = DOT_PRODUCT(Cel(4,1:6),CS)
-    rm(2,3) = DOT_PRODUCT(Cel(4,1:6),CS)
-tot = matmul(transpose(Salpha),rm)
-coeff = tot(1,1)+tot(2,2)+tot(3,3)
-return
-end subroutine Acoeff
 
-subroutine sincr(PA,x,tautr,s0,Ctr,Cel,slip,phi1,Phi,phi2)    !Calculates the slip increments
+
+subroutine sincr(PA,x,tautr,s0,Ctr)    !Calculates the slip increments
+    use global
     
-    
-    real(8) :: h, coeffA, switch, sgn,phi1,Phi,phi2
+    real(8) ::  coeffA, switch, sgn
     real(8) , dimension(3,3) :: Ctr
-    real(8) , dimension(6,12) :: slip
-    real(8) , dimension(6,6) :: Cel
     real(8) , dimension(12) :: tautr, s0
     logical, dimension(12) :: PA
     double precision, dimension(12,12) :: A, U, VT, Eps, Aplus, Atest, Adisp, Eps1
@@ -1075,7 +993,7 @@ do i = 1,12
             if (PA(j) )then
                 !call hparam(i,j,s0,h,slip)
                 !write(7,*) h
-                call Acoeff(i,j,Ctr,coeffA,Cel,slip)
+                call Acoeff(i,j,Ctr,coeffA)
                
                 sgn = tautr(i)*tautr(j)/abs(tautr(i)*tautr(j))
                 
@@ -1152,308 +1070,29 @@ end do outer
 return
 end subroutine sincr
 
-subroutine voigt(A,B)
-    real(8) , dimension(6,6) :: Cel
-    real(8) , dimension(6) :: vec
-    real(8) , dimension(3,3) :: A,B
-    
-    !Elasticity tensor
-    Cel = 0
-    forall (i = 1:3) Cel(i,i)= 170*1000
-    forall (i = 4:6) Cel(i,i)= 75*1000
-    forall (i = 1:2) Cel(i+1,i) = 124*1000
-    forall (i = 1:2)  Cel(i,i+1) = 124*1000
-    Cel(3,1) = 124*1000
-    Cel(1,3) = 124*1000
-
-    vec = (/A(1,1),A(2,2),A(3,3),A(2,3),A(1,3),A(1,2)/)
-
-    B(1,1) = DOT_PRODUCT(Cel(1,1:6),vec)
-    B(2,2) = DOT_PRODUCT(Cel(2,1:6),vec)
-    B(3,3) = DOT_PRODUCT(Cel(3,1:6),vec)
-    B(1,2) = DOT_PRODUCT(Cel(6,1:6),vec)
-    B(2,1) = DOT_PRODUCT(Cel(6,1:6),vec)
-    B(1,3) = DOT_PRODUCT(Cel(5,1:6),vec)
-    B(3,1) = DOT_PRODUCT(Cel(5,1:6),vec)
-    B(3,2) = DOT_PRODUCT(Cel(4,1:6),vec)
-    B(2,3) = DOT_PRODUCT(Cel(4,1:6),vec)
-
-end subroutine voigt
-
-subroutine textur(Fe1,slip,nslip)
-    
-    real(8), dimension(6,12) :: slip, nslip
-    real(8), dimension(3,3) :: Fe1, Feinv
-    integer :: i
-    
-call minv3(Fe1,Feinv)
-
-    do i = 1,12
-        nslip(1:3,i) = matmul(transpose(Fe1),slip(1:3,i))
-        nslip(1:3,i) = nslip(1:3,i)/SQRT(nslip(1,i)**2+nslip(2,i)**2+nslip(3,i)**2)
-
-        nslip(4:6,i) = matmul(transpose(Feinv),slip(4:6,i))
-        nslip(4:6,i) = nslip(4:6,i)/SQRT(nslip(4,i)**2+nslip(5,i)**2+nslip(6,i)**2)
-    end do
-    return 
-    
-end subroutine textur
-
-subroutine textr(R,slip,nslip)
-    
-    real(8), dimension(6,12) :: slip, nslip
-    real(8), dimension(3,3) :: R, Rinv
-    integer :: i
-    
-    call minv3(R,Rinv)
-
-    do i = 1,12
-        nslip(1:3,i) = matmul(R,slip(1:3,i))
-        
-
-        nslip(4:6,i) = matmul(transpose(Rinv),slip(4:6,i))
-        
-    end do
-    return 
-    
-end subroutine textr
-
-subroutine eulang(R,phi1,Phi,phi2)
-! Declear variables
-    real(8), dimension(3,3), intent(in) :: R
-    real(8), intent(out) :: phi1, Phi, phi2
-! Set limit for changes 
-    if (R(3,3) > 0.999999 .or. R(3,3) < -0.999999 ) then
-        Phi = 0 
-        phi1 = 0
-        phi2 = phi1 + atan2(R(1,2),R(1,1))
-    else
-      Phi = ACOS(R(3,3))
-      phi2 = ATAN2(R(1,3),R(2,3))
-      phi1 = ATAN2(-R(3,1),R(3,2))  
-    end if
-
-end subroutine eulang
-subroutine decomp(Fe1,R)
-    real(8), dimension(3,3) :: R, Fe1, Ev, U2,VL,Eval, U, Uinv
-    integer :: n = 3, LWORK = 1000
-    real(8), dimension(3) :: WR, WI, INFO
-    real(8), dimension(1000) :: WORK
-
-U2 = matmul(transpose(Fe1),Fe1)
-    call dgeev('N','V',n,U2,n,WR,WI,VL,n,Ev,n,WORK,LWORK,INFO)
-do i = 1,3
-Eval (i,i) = sqrt(WR(i))
-end do
-
-U = matmul(transpose(Ev),matmul(Eval,Ev))
-
-call minv3(U,Uinv)
-
-R = matmul(Fe1,Uinv)
-
-return
-end subroutine decomp
 
 
-!C**********************************************************************
-!C                         FUNCTION POLAR                              *
-!C**********************************************************************
-!C Polar decomposition of F = R.U using the Cayley-Hamilton theorem    *
-!C see Nemat-Nasser's book p.55                                        *
-!C Returns R                                                           *
-!C**********************************************************************
-subroutine POLAR(F,R)
-    !C
-    IMPLICIT NONE
-    !C
-    REAL(kind=8)    :: F(3,3),R(3,3),C(3,3),CS(3,3),U(3,3),UI(3,3),C1,C3,P, &
-                       CD11,CD22,CD33,CD2,CD3,U1,U2,U3,A,B,PHI,L1,D,E,A3,B2
-    INTEGER         :: I,J,K
-   
-    intent(in)      :: F
 
-    !C Compute stretch tensor: C = F^T.F
-    DO J=1,3
-        DO I=1,3
-            C(I,J)=0.D0
-            DO K=1,3
-                C(I,J)=C(I,J)+F(K,I)*F(K,J)
-            END DO
-        END DO
-    END DO
-    !C Compute C^2
-    CS = MatMUL(C, C)
-    !C Compute invariants
-    C1=C(1,1)+C(2,2)+C(3,3)
-
-    C3=C(1,1)*(C(2,2)*C(3,3)-C(2,3)*C(3,2))+ &
-       C(1,2)*(C(2,3)*C(3,1)-C(2,1)*C(3,3))+ &
-       C(1,3)*(C(2,1)*C(3,2)-C(2,2)*C(3,1))
-   
-    !C Invariants of the deviatoric part CD of tensor C
-    P=(C(1,1)+C(2,2)+C(3,3))/3.D0
-    
-    CD11=C(1,1)-P
-    CD22=C(2,2)-P
-    CD33=C(3,3)-P
-   
-    CD2=CD11*CD22+CD11*CD33+CD22*CD33- &
-        (C(1,2)*C(2,1)+C(1,3)*C(3,1)+C(2,3)*C(3,2))
-    CD3=CD11*(CD22*CD33-C(2,3)*C(3,2))+ &
-        C(1,2)*(C(2,3)*C(3,1)-C(2,1)*CD33)+ &
-        C(1,3)*(C(2,1)*C(3,2)-CD22*C(3,1))
-    !C Invariants of U
-    U3=sqrt(C3)
-    A=-CD2/3.D0
-    B=CD3/2.D0
-    A3=A**3.D0
-    B2=B*B
-   
-    IF (ABS(A3-B2).GT.1.D-12) THEN
-        PHI=ACOS(B/A**(3.D0/2.D0))
-        L1=SQRT(C1/3.D0+2.D0*SQRT(A)*COS(PHI/3.D0))
-    ELSE
-        L1=SQRT(C1/3.D0)
-    END IF
-   
-    U1=L1+SQRT(C1-L1*L1+2.D0*U3/L1)
-    U2=0.5D0*(U1*U1-C1)
-    !C Computes U
-    D=U3-U1*U2
-    E=U1**2.D0-U2
-    DO I=1,3
-        DO J=1,3
-            U(I,J)=(CS(I,J)-E*C(I,J))/D
-            IF (I.EQ.J) THEN
-                U(I,J)=U(I,J)-U1*U3/D
-            END IF
-        END DO
-    END DO
-    call minv3(U,UI)
-    R = matmul(F,UI)
-return
-end subroutine POLAR
-
-
-subroutine eqvstr(T,sigmaeq)
-    implicit none
-    real(8) , intent(in), dimension(3,3) :: T
-    real(8) , intent(out) :: sigmaeq
-    integer :: i, j 
-
-sigmaeq = 1.00/2.00*((T(1,1)-T(2,2))**2+(T(2,2)-T(3,3))**2+(T(3,3)-T(1,1))**2+6.00*(T(1,2)**2+T(2,3)**2+T(3,1)**2))
-
-sigmaeq = sqrt(sigmaeq)
-return
-end subroutine eqvstr
-
-subroutine matinv4(A,B)
-    !! Performs a direct calculation of the inverse of a 4×4 matrix.
-    real(8), intent(in) :: A(4,4)   !! Matrix
-    real(8)             :: B(4,4)   !! Inverse matrix
-    real(8)             :: detinv
-
-    ! Calculate the inverse determinant of the matrix
-    detinv = &
-      1/(A(1,1)*(A(2,2)*(A(3,3)*A(4,4)-A(3,4)*A(4,3))+A(2,3)*(A(3,4)*A(4,2)-A(3,2)*A(4,4))+A(2,4)*(A(3,2)*A(4,3)-A(3,3)*A(4,2)))&
-       - A(1,2)*(A(2,1)*(A(3,3)*A(4,4)-A(3,4)*A(4,3))+A(2,3)*(A(3,4)*A(4,1)-A(3,1)*A(4,4))+A(2,4)*(A(3,1)*A(4,3)-A(3,3)*A(4,1)))&
-       + A(1,3)*(A(2,1)*(A(3,2)*A(4,4)-A(3,4)*A(4,2))+A(2,2)*(A(3,4)*A(4,1)-A(3,1)*A(4,4))+A(2,4)*(A(3,1)*A(4,2)-A(3,2)*A(4,1)))&
-       - A(1,4)*(A(2,1)*(A(3,2)*A(4,3)-A(3,3)*A(4,2))+A(2,2)*(A(3,3)*A(4,1)-A(3,1)*A(4,3))+A(2,3)*(A(3,1)*A(4,2)-A(3,2)*A(4,1))))
-
-    ! Calculate the inverse of the matrix
-    B(1,1) = detinv*(A(2,2)*(A(3,3)*A(4,4)-A(3,4)*A(4,3))+A(2,3)*(A(3,4)*A(4,2)-A(3,2)*A(4,4))+A(2,4)*(A(3,2)*A(4,3)-A(3,3)*A(4,2)))
-    B(2,1) = detinv*(A(2,1)*(A(3,4)*A(4,3)-A(3,3)*A(4,4))+A(2,3)*(A(3,1)*A(4,4)-A(3,4)*A(4,1))+A(2,4)*(A(3,3)*A(4,1)-A(3,1)*A(4,3)))
-    B(3,1) = detinv*(A(2,1)*(A(3,2)*A(4,4)-A(3,4)*A(4,2))+A(2,2)*(A(3,4)*A(4,1)-A(3,1)*A(4,4))+A(2,4)*(A(3,1)*A(4,2)-A(3,2)*A(4,1)))
-    B(4,1) = detinv*(A(2,1)*(A(3,3)*A(4,2)-A(3,2)*A(4,3))+A(2,2)*(A(3,1)*A(4,3)-A(3,3)*A(4,1))+A(2,3)*(A(3,2)*A(4,1)-A(3,1)*A(4,2)))
-    B(1,2) = detinv*(A(1,2)*(A(3,4)*A(4,3)-A(3,3)*A(4,4))+A(1,3)*(A(3,2)*A(4,4)-A(3,4)*A(4,2))+A(1,4)*(A(3,3)*A(4,2)-A(3,2)*A(4,3)))
-    B(2,2) = detinv*(A(1,1)*(A(3,3)*A(4,4)-A(3,4)*A(4,3))+A(1,3)*(A(3,4)*A(4,1)-A(3,1)*A(4,4))+A(1,4)*(A(3,1)*A(4,3)-A(3,3)*A(4,1)))
-    B(3,2) = detinv*(A(1,1)*(A(3,4)*A(4,2)-A(3,2)*A(4,4))+A(1,2)*(A(3,1)*A(4,4)-A(3,4)*A(4,1))+A(1,4)*(A(3,2)*A(4,1)-A(3,1)*A(4,2)))
-    B(4,2) = detinv*(A(1,1)*(A(3,2)*A(4,3)-A(3,3)*A(4,2))+A(1,2)*(A(3,3)*A(4,1)-A(3,1)*A(4,3))+A(1,3)*(A(3,1)*A(4,2)-A(3,2)*A(4,1)))
-    B(1,3) = detinv*(A(1,2)*(A(2,3)*A(4,4)-A(2,4)*A(4,3))+A(1,3)*(A(2,4)*A(4,2)-A(2,2)*A(4,4))+A(1,4)*(A(2,2)*A(4,3)-A(2,3)*A(4,2)))
-    B(2,3) = detinv*(A(1,1)*(A(2,4)*A(4,3)-A(2,3)*A(4,4))+A(1,3)*(A(2,1)*A(4,4)-A(2,4)*A(4,1))+A(1,4)*(A(2,3)*A(4,1)-A(2,1)*A(4,3)))
-    B(3,3) = detinv*(A(1,1)*(A(2,2)*A(4,4)-A(2,4)*A(4,2))+A(1,2)*(A(2,4)*A(4,1)-A(2,1)*A(4,4))+A(1,4)*(A(2,1)*A(4,2)-A(2,2)*A(4,1)))
-    B(4,3) = detinv*(A(1,1)*(A(2,3)*A(4,2)-A(2,2)*A(4,3))+A(1,2)*(A(2,1)*A(4,3)-A(2,3)*A(4,1))+A(1,3)*(A(2,2)*A(4,1)-A(2,1)*A(4,2)))
-    B(1,4) = detinv*(A(1,2)*(A(2,4)*A(3,3)-A(2,3)*A(3,4))+A(1,3)*(A(2,2)*A(3,4)-A(2,4)*A(3,2))+A(1,4)*(A(2,3)*A(3,2)-A(2,2)*A(3,3)))
-    B(2,4) = detinv*(A(1,1)*(A(2,3)*A(3,4)-A(2,4)*A(3,3))+A(1,3)*(A(2,4)*A(3,1)-A(2,1)*A(3,4))+A(1,4)*(A(2,1)*A(3,3)-A(2,3)*A(3,1)))
-    B(3,4) = detinv*(A(1,1)*(A(2,4)*A(3,2)-A(2,2)*A(3,4))+A(1,2)*(A(2,1)*A(3,4)-A(2,4)*A(3,1))+A(1,4)*(A(2,2)*A(3,1)-A(2,1)*A(3,2)))
-    B(4,4) = detinv*(A(1,1)*(A(2,2)*A(3,3)-A(2,3)*A(3,2))+A(1,2)*(A(2,3)*A(3,1)-A(2,1)*A(3,3))+A(1,3)*(A(2,1)*A(3,2)-A(2,2)*A(3,1)))
-    return 
-end subroutine
-
-subroutine gausseid(A,b,x0)
-    implicit none
-    real(8) , dimension (4,4) :: A, L , Aint, U
-    real(8) , dimension(4) :: x0, x1, b,error,bint
-    integer :: i
-
-! Normalize the diagonal elements
-Aint(1,1:4) = A(1,1:4)/A(1,1) 
-Aint(2,1:4) = A(2,1:4)/A(2,2) 
-Aint(3,1:4) = A(3,1:4)/A(3,3) 
-Aint(4,1:4) = A(4,1:4)/A(4,4) 
-Bint(1) = B(1)/A(1,1)
-Bint(2) = B(2)/A(2,2)
-Bint(3) = B(3)/A(3,3)
-Bint(4) = B(4)/A(4,4)
-
-
-!Define L And U 
-L = 0
-L(2,1) = Aint(2,1)
-L(3,1:2) = Aint(3,1:2)
-L(4,1:3) = Aint(4,1:3)
-
-! Define U
-U = 0
-U(1,2:4) = Aint(1,2:4)
-U(2,3:4) = Aint(2,3:4)
-U(3,4) = Aint(3,4)
-
-error = 1
-   do while (sum(error)> 0.0000000001)
-    x1 = 0
-    do i = 1,4 
-        x1(i) = bint(i)- dot_product(L(i,1:4),x1) - dot_product(U(i,1:4),x0)
-    end do
-   
-    x0 = x1
-    error = abs(x1-x0)
-    
-end do
-write(11,*) x1
-return
-end subroutine
-
-
-!! PERFORMS DOBLE DOT PRODUCT ON 3X3 TENSORS 
-!!
-!!
-subroutine contract2(T,S,dprod)
-    implicit none
-
-    real(8), dimension(3,3), Intent(in) :: T, S
-    real(8), Intent(out) :: dprod
-
-    dprod = T(1,1)*S(1,1) + T(2,2)*S(2,2) + T(3,3)*S(3,3) +&
-            T(1,2)*S(1,2) + T(2,1)*S(2,1) + T(1,3)*S(1,3) + &
-            T(3,1)*S(3,1) + T(2,3)*S(2,3) + T(3,2)*S(3,2)
-    
-return
-end subroutine contract2
-
-
+!!! SUBROUTINE TO CALCULATE THE GRADIENT OF A GIVEN HOSHFORD YIELD SURFACE. 
 subroutine hoshfordnormal(Tag,grad)
-    !Subroutine for calculation of the normal direction of the Hoshford/Hersey yield surface
+    !Subroutine for calculation of the GRADIENT of the Hoshford/Hersey yield surface
     ! The method is adapted from Barlat et al (1991) "A six-component yield function for anisotropic materials"
     ! Since the hoshford/Hersey yield surface is given in principle stresses, the eigenvalue problem has to be analytically solved in order to calculate the gradient directly
-    ! The partial derivatives of A,B,C,F,G,H with respect to the six stress comp
-
+    ! The partial derivatives of A,B,C,F,G,H (Bishop-Hill notation) with respect to the six stress component are writen in the matrix partials.
+    !   
+    !               dA/ds11 dB/ds11    .....  dH/ds11  
+    !               dA/ds22 dB/ds22             .
+    ! partials =    dA/ds33    .    .           .
+    !               dA/ds23    .      .         .    
+    !               dA/ds13    .        .        .            
+    !               dA/ds12    .        ..... dH/ds12
+    !
+    use global
     implicit none 
     real(8), dimension(3,3) :: Tag, grad
-    real(8) :: A, B, C, F, G, H, dI2,dI3, dtheta, I2, I3, theta, m = 8.8 , dsum, PI=4.D0*DATAN(1.D0),sum
+    real(8) :: A, B, C, F, G, H, dI2,dI3, dtheta, I2, I3, theta, m = 8.8 , dsum,sum
     real(8) , dimension(6,6) :: partials
-    integer :: LDA = 3, LWORK = 1000, INFO, i , j
+    integer :: i 
     real(8) , dimension(6) :: n
     
 
@@ -1501,42 +1140,142 @@ subroutine hoshfordnormal(Tag,grad)
         n(i) = m/2*3**(m/2.)*I2**(m/2.-1.)*dI2*sum+(3*I2)**(m/2.)*dsum
 
     end do
-       n = n/norm2(n)
+       !n = n/norm2(n)
 !write(*,*) n/norm2(n)
 !write(8,*) tag(1,1), tag(2,2), n(1), n(2)
 call vec2tens(grad,n)
+grad = grad/norm2(grad)
+
 return
 end subroutine hoshfordnormal
 
-!! CONVERTS A SYMETRIC TENSOR INTO A VECTOR
-!!
-subroutine tens2vec(T,v)
-    implicit none 
-    real(8), intent(in), dimension(3,3) :: T
-    real(8), intent(out), dimension(6) :: v
+!! Subroutine for calculation of the isotropic elastic constant
+subroutine Elasticconstant(Chook, mu)
+ use global
+    implicit none
+    real(8), dimension(3,3) :: La,Dp,tag,F,E
+    real(8) :: gammatot,gammatoti, dt0, mu , lambda
+    real(8) , dimension(3,3,nlines)  :: Fp0,F0,Fp0i,F0i
+    real(8),  dimension(nlines,12) :: S0,S0i
+    real(8) , dimension(6,6)              :: Chook
+    integer :: n, i
+    
+            La(1,1) = 1.
+            La(2,2) = -1./2.
+            La(3,3) =-1./2.
+            La(1,2) =0
+            La(2,1) = 0
+            La(1,3) = 0
+            La(3,1) = 0
+            La(2,3) = 0
+            La(3,2) = 0
+            
+            do i = 1,nlines
+            F0(1:3,1:3,i) = id
+            Fp0(1:3,1:3,i) = id
+            end do
+            s0(:,1:12) = 10
+            gammatot = 0
+     
+           ! do while (gammatot == 0)    
+           !     do i = 1,nlines
+           !         F0(1:3,1:3,i) = id
+           !         Fp0(1:3,1:3,i) = id
+           !         end do
+           !     dt0 = dt *n 
+           !     gammatot = 0
+           !     s0(:,1:12) = 10
+           !     call timestep(Tag, Dp, La, gammatot, gammatoti , Fp0, Fp0i, F0, F0i,S0i,s0,dt0)
+           !     gammatot = gammatoti
+           !      n = n + 1
+           ! end do
+            gammatoti = 0   
+            n = 1
+            dt0 = dt *n 
+            call timestep(Tag, Dp, La, gammatot, gammatoti , Fp0, Fp0i, F0, F0i,S0i,s0,dt0)
+            F = id + La*dt0
+            E = 1./2.*(matmul(transpose(F),F)-id)
+            mu =  1./2.*(tag(3,3)-tag(1,1))/(E(3,3)-E(1,1))
+            lambda = (tag(1,1)-2*mu*E(1,1))/(E(1,1)+E(2,2)+E(3,3))
+           
+           
+            !Elasticity tensor
+            Chook = 0
+            forall (i = 1:3) Chook(i,i)= 2*mu +lambda
+            forall (i = 4:6) Chook(i,i)= lambda
+            forall (i = 1:2) Chook(i+1,i) = lambda
+            forall (i = 1:2)  Chook(i,i+1) = lambda
+            Chook(3,1) = lambda
+            Chook(1,3) = lambda
+            
+end subroutine
 
-    v(1:6) = (/ T(1,1),T(2,2), T(3,3),T(1,2), T(1,3),&
-                T(2,3) /)
+subroutine Yoshidamodel(Tag,D,Dp)
+    use global
+    implicit none
 
-return
-end subroutine tens2vec
+    real(8) , dimension(3,3) :: Dp,Dpt,Dpn,Tag,D,N, DdevT, tensprod,Ddev
+    integer :: i,j,k,l
+    real(8) :: kronecker,lambdadot,lambdadottemp, theta,alpha, G, theta0 = 0.17, c1 = 0.3
+    real(8) , dimension(6,6)              :: Chook
+    real(8) , dimension(6)                :: vec
+    
+    call hoshfordnormal(tag,N)
+    call Elasticconstant(Chook,G)
+    
+    
+    do i = 1,3
+        do j = 1,3
+            do k = 1,3
+                do l = 1,3
+            DdevT(i,j) = DdevT(i,j) + (1./2.*(kronecker(i,k)*kronecker(j,l)+kronecker(i,l)*kronecker(j,k))-1./3.*(id(i,j)*id(k,l)) &
+            -N(i,j)*N(k,l))*D(k,l)
+                end do
+            end do
+        end do
+    end do
+   ! write(*,*) DdevT
+   ! write(*,*) Ddev
+    Ddev = D-1./3.*(D(1,1)+D(2,2)+D(3,3))*id
+    call contract2(Ddev, N, theta)
+    theta = acos(theta/norm2(Ddev))
+  !  write(*,*) theta
+    
+    if (theta > 0 .and. theta <= theta0 ) then
+        alpha = 1-c1*sqrt(16/G)
+    else if (theta > theta0 .and. theta <= pi/2) then
+        alpha = (1-c1*sqrt(16/G))*((pi/2-theta)/(pi/2-theta0))
+    else if ( theta > pi/2 .and. theta < pi ) then
+        alpha = 0
+    end if   
+    
+    Dpt = alpha*DdevT 
+ !   write(*,*) Dpt
+   vec = (/ D(1,1), D(2,2), D(3,3), 2.*D(2,3),2.*D(1,3),2.*D(1,2)/)
+   vec = matmul(Chook,vec)
+   call vec2tens(tensprod,vec)
+   call contract2(tensprod,N,lambdadot)
+   vec = (/ N(1,1), N(2,2), N(3,3), 2.*N(2,3),2.*N(1,3),2.*N(1,2)/)
+   vec = matmul(Chook,vec)
+   call vec2tens(tensprod,vec)
+   call contract2(tensprod,N,lambdadottemp)
+   
+   lambdadot = lambdadot/lambdadottemp
+!write(*,*) lambdadot
+Dpn = lambdadot*N
+!write(*,*) Dpn
+Dp = Dpn+Dpt
 
-!! CONVERTS A VECTOR INTO A SYMMETRIC TENSOR
-!!
-subroutine vec2tens(T,v)
-    implicit none 
-    real(8), intent(out), dimension(3,3) :: T
-    real(8), intent(in), dimension(6) :: v
+end subroutine Yoshidamodel
 
-T(1,1) = v(1)
-T(2,2) = v(2)
-T(3,3) = v(3)
-T(2,3) = v(4)
-T(3,2) = v(4)
-T(1,3) = v(5)
-T(3,1) = v(5)
-T(1,2) = v(6)
-T(2,1) = v(6)
-
-return
-end subroutine vec2tens
+function kronecker(i,j)
+    implicit none
+    integer :: i,j
+    real(8) :: kronecker
+    if (i == j ) then 
+        kronecker = 1
+    else 
+        kronecker = 0
+    end if 
+    return
+end function kronecker
