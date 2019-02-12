@@ -54,7 +54,7 @@ Allocate(s0(nlines,12))
 pw2 = 0.003
 part = 200
 call OMP_SET_NUM_THREADS(7)
-!$OMP PARALLEL PRIVATE(k,F0i,S0i,Fp0i,bryter)
+!$OMP PARALLEL PRIVATE(k,F0,S0,Fp0,bryter)
 !$OMP DO
 do k = 0,2*part
     bryter = 7
