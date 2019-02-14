@@ -39,29 +39,29 @@ Allocate(s0(nlines,12))
 
 
 
-!pw1 = 0.003
-!bryter = 7
-!call newton(1,2,bryter,F0,Fp0,S0,pw1) 
+pw1 = 0.003
+bryter = 5
+call newton(1,2,bryter,F0,Fp0,S0,pw1) 
 !write(*,*) bryter
 
-!bryter = 6
-!pw1 = 0.003
-!call newton(0,3,bryter,F0,Fp0,S0,pw1)   
+bryter = 6
+pw1 = 0.005
+call newton(0,3,bryter,F0,Fp0,S0,pw1)   
 !write(*,*) 'check1'
 !F0 = F0i
 !S0 = S0i
 !Fp0 = Fp0i
-pw2 = 0.003
-part = 200
-call OMP_SET_NUM_THREADS(7)
-!$OMP PARALLEL PRIVATE(k,F0,S0,Fp0,bryter)
-!$OMP DO
-do k = 0,2*part
-    bryter = 7
-    call newton(k,part,bryter,F0,Fp0,S0,pw2)
-end do
-!$OMP END DO NOWAIT
-!$OMP END PARALLEL
+!pw2 = 0.003
+!part = 200
+!call OMP_SET_NUM_THREADS(7)
+!!$OMP PARALLEL PRIVATE(k,F0,S0,Fp0,bryter)
+!!$OMP DO
+!do k = 0,2*part
+!    bryter = 7
+!    call newton(k,part,bryter,F0,Fp0,S0,pw2)
+!end do
+!!$OMP END DO NOWAIT
+!!$OMP END PARALLEL
 
 
 
@@ -195,7 +195,7 @@ subroutine taylor(La,Tag,bryter,F0i,Fp0i,S0i,pw,Dp)
      
     !Declear all variables
  
-    real(8) :: phi1, Phi, phi2,dt0, sigmaeq, gammatot,pw,gammatoti,gammaskrank,dot, dl
+    real(8) :: phi1, Phi, phi2,dt0, sigmaeq, gammatot,pw,gammatoti,gammaskrank,dot, dl, nor1,nor2
     real(8) , dimension(3,3)  :: grad,T0 , Dp, Lb, Tagb, La0,Dp2
                         
     real(8) , dimension(3,3) :: La
@@ -210,8 +210,10 @@ subroutine taylor(La,Tag,bryter,F0i,Fp0i,S0i,pw,Dp)
     real(8), dimension(5) :: propconst, offdl2, sigma2, IPIV2
     real(8) , dimension(5,5)  :: Jacob2, Jinv2
     integer, dimension(5) :: pos1, pos2
+    real(8) :: pwpercision
     
-
+    ! The percision of the plastic work given in relative fraction
+    pwpercision = 0.0000000001
     !Timeincrement
     !dt0 = 0.0000001
 
@@ -305,15 +307,16 @@ case (1)
     nit = 0   
     boundarycond: do  while (nit < 10)  
        ! write(*,*) La
+    nor1 = norm2(La)
        call timestep(Tag, Dp, La, gammatot, gammatoti, Fp0, Fp0int, F0, F0int,S0in,s0,dt0)
-       !write(*,*) sigma , Tag(1,1), Tag(2,2), gammatoti
+       write(*,*) sigma , Tag(1,1), Tag(2,2), gammatoti
        do h = 1,4
         sigma(h) = Tag(pos1(h),pos2(h))
        end do
       ! write(*,*) sigma
          minl = minloc(sigma, DIM = 1)
          maxl = maxloc(sigma, DIM = 1)
-         if (abs(sigma(minl)) < 0.0000001 .and. abs(sigma(maxl)) < 0.0000001) then
+         if (abs(sigma(minl)) < 0.00000000001 .and. abs(sigma(maxl)) < 0.00000000001) then
             
          !   write(*,*) tag
             exit boundarycond
@@ -350,7 +353,7 @@ case (1)
         minl = minloc(sigma, DIM = 1)
         maxl = maxloc(sigma, DIM = 1)
        
-       
+       nor2 = norm2(La)
 
    nit = nit+1
    !write(*,*) nit
@@ -379,7 +382,7 @@ case (2)
     end if
          minl = minloc(sigma2, DIM = 1)
          maxl = maxloc(sigma2, DIM = 1)
-         if (abs(sigma2(minl)) < 0.0000001 .and. abs(sigma2(maxl)) < 0.0000001) then
+         if (abs(sigma2(minl)) < 0.00000000001 .and. abs(sigma2(maxl)) < 0.00000000001) then
            write(*,*) sigma2 , Tag(1,1), Tag(2,2), gammatoti
          !   write(*,*) tag
             exit boundary2
@@ -437,13 +440,13 @@ end select
        
         
        
-        if (gammatoti > pw .and. abs((gammatoti - pw)/pw) > 0.00001) then
+        if (gammatoti > pw .and. abs((gammatoti - pw)/pw) > pwpercision) then
             if (pw == 0) then
                 dt0 = dt0/2
             else
-            dt0 = (pw-gammatot)*dt0/(gammatoti-gammatot) 
+            dt0 = (pw-gammatot)*dt0/(gammatoti-gammatot)*0.5
             end if
-            
+            write(*,*) dt0, sigma, gammatoti-pw, nor1, nor2
             switch = switch +1
             secit = secit +1
             if (secit > 30) then 
@@ -501,7 +504,7 @@ end select
             end if
         end if 
 
-        if (abs((gammatot -pw)/pw) <= 0.00001) then
+        if (abs((gammatot -pw)/pw) <= pwpercision) then
             Fp0i = Fp0
             F0i  = F0
             S0i = S0   
@@ -517,12 +520,13 @@ end select
     else if (bryter == 2 .or. bryter == 6) then
         
         if (pw /= 0) then
-        if (gammatoti > pw .and. abs((gammatoti - pw)/pw) > 0.00000001) then
+        if (gammatoti > pw .and. abs((gammatoti - pw)/pw) > pwpercision) then
             if (pw == 0) then
                 dt0 = dt0/2
             else
-            dt0 = (pw-gammatot)*dt0/(gammatoti-gammatot) 
+            dt0 = (pw-gammatot)*dt0/(gammatoti-gammatot)*0.5
             end if
+            write(*,*) dt0, sigma, gammatoti-pw
             switch = switch +1
             secit = secit +1
             if (secit > 15) then 
@@ -533,7 +537,7 @@ end select
         end if
 
         if (pw == 0) then
-            if (gammatoti > pw .and. abs(gammatoti) > 0.00000001) then
+            if (gammatoti > pw .and. abs(gammatoti) > pwpercision) then
             dt0 = dt0/2
             !dt0 = (pw-gammatot)*dt0/(gammatoti-gammatot) 
             switch = switch +1
@@ -592,9 +596,9 @@ end select
             end if
         end if 
         
-        if (pw /= 0 .and. abs((gammatot -pw)/pw)<= 0.000000001) then
+        if (pw /= 0 .and. abs((gammatot -pw)/pw)<= pwpercision) then
             exit iter
-        else if (pw == 0 .and. gammatot <= 0.000000001 .and. gammatot > 0) then
+        else if (pw == 0 .and. gammatot <= pwpercision .and. gammatot > 0) then
            ! write(*,*) 'check'
             exit iter
 
@@ -653,7 +657,7 @@ subroutine timestep(Tag, Dp, La, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,S0
     
     !Declear all variables
  
-    real(8) :: phi1, Phi, phi2, det,dt0, cons, gammatot,gammatoti
+    real(8) :: phi1, Phi, phi2, det,dt0, cons, gammatot,gammatoti,h
     real(8) , dimension(3,3)  :: F1, Fp1, Fp1inv, Fe1, Fetr,Fp0inv, Ctr,T1,Ttr,Etr , & 
                          Schmid,TS,Tint, CS, Tst, Fpint ,Rn,  Rtest,Dpc,Dp
     real(8) , dimension(3,3), intent(in)  :: La
@@ -666,7 +670,7 @@ subroutine timestep(Tag, Dp, La, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,S0
     real(8) , dimension(3) :: m,n
     logical, dimension(12) :: PA, Active
     logical :: consise
-    integer :: i,countera,ij, numact,j
+    integer :: i,countera,ij, numact,j,q
     double precision, dimension(12):: x
     
     Tag = 0
@@ -763,12 +767,17 @@ subroutine timestep(Tag, Dp, La, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,S0
     
     !Calculate increase in critical shear rate.
     s1 = s0(j,1:12)
-    ! do i = 1,12
-    !    do j = 1,12
-    !        call hparam(i,j,s0,h,slip)
-    !        s1(i) = s1(i) + h*x(j)
-    !    end do
-    !end do
+    
+     do i = 1,12
+        countera = 1
+        do q = 1,12
+            if (Active(q)) then 
+            call hparam(i,q,s0int,h,slip)
+            s1(i) = s1(i) + h*x(countera)
+            countera = countera+1
+            end if
+        end do
+    end do
     
     !Step 10, check consistency
     
@@ -946,8 +955,9 @@ end subroutine hparam
 
 subroutine sincr(PA,x,tautr,s0,Ctr)    !Calculates the slip increments
     use global
+    implicit none
     
-    real(8) ::  coeffA, switch, sgn
+    real(8) ::  coeffA, switch, sgn,h 
     real(8) , dimension(3,3) :: Ctr
     real(8) , dimension(12) :: tautr, s0
     logical, dimension(12) :: PA
@@ -955,7 +965,7 @@ subroutine sincr(PA,x,tautr,s0,Ctr)    !Calculates the slip increments
     integer :: i,j,countera,LWMAX , sizeA,counterb, INFO,lda, sw
     double precision, dimension(12):: x,b,Sing,test
     double precision, dimension(:), allocatable:: WORK
-    integer :: minpos
+    integer :: minpos,teller
 
  lda = 12
  sw = 0
@@ -991,13 +1001,13 @@ do i = 1,12
         counterb = 1
         do j = 1,12
             if (PA(j) )then
-                !call hparam(i,j,s0,h,slip)
+                call hparam(i,j,s0,h,slip)
                 !write(7,*) h
                 call Acoeff(i,j,Ctr,coeffA)
                
                 sgn = tautr(i)*tautr(j)/abs(tautr(i)*tautr(j))
                 
-                A(countera,counterb) = sgn*coeffA
+                A(countera,counterb) = sgn*coeffA+h
                 counterb = counterb+1
             end if 
         end do
@@ -1089,20 +1099,21 @@ subroutine hoshfordnormal(Tag,grad)
     !
     use global
     implicit none 
-    real(8), dimension(3,3) :: Tag, grad
-    real(8) :: A, B, C, F, G, H, dI2,dI3, dtheta, I2, I3, theta, m = 8.8 , dsum,sum
+    real(8), dimension(3,3), intent(in) :: Tag
+    real(8), dimension(3,3), intent(out) :: grad
+    real(8) :: A, B, C, F, G, H, dI2,dI3, dtheta, I2, I3, theta, m = 8.8 , dsum,sum, sFi
     real(8) , dimension(6,6) :: partials
     integer :: i 
     real(8) , dimension(6) :: n
     
-
+    grad = 0
     n = 0 
    
     partials(1,1:6) = (/  0.0 , -1.0,  1.0,  0.0,  0.0,  0.0/)
     partials(2,1:6) = (/  1.0 ,  0.0, -1.0,  0.0,  0.0,  0.0/)
     partials(3,1:6) = (/ -1.0 ,  1.0,  0.0,  0.0,  0.0,  0.0/)
     partials(4,1:6) = (/  0.0 ,  0.0,  0.0,  1.0,  0.0,  0.0/)
-    partials(4,1:6) = (/  0.0 ,  0.0,  0.0,  0.0,  1.0,  0.0/)
+    partials(5,1:6) = (/  0.0 ,  0.0,  0.0,  0.0,  1.0,  0.0/)
     partials(6,1:6) = (/  0.0 ,  0.0,  0.0,  0.0,  0.0,  1.0/)
 
     A = tag(2,2)-tag(3,3)
@@ -1115,6 +1126,8 @@ subroutine hoshfordnormal(Tag,grad)
     I3 = ((C-B)*(A-C)*(B-A))/54 + F*G*H - ((C-B)*F**2+(A-C)*G**2+(B-A)*H**2)/6
     theta = acos(I3/I2**(3./2.))
     sum = ((2*cos((2*theta+pi)/6.))**(m))+((2*cos((2*theta -  3*pi)/6.))**(m)) + ((-2*cos((2*theta +  5*pi)/6.))**(m))
+    sFi = (3*I2)**(m/2.)*sum
+    
     
     do i = 1,6
         dI2 = 2./3.*(F*partials(i,4)+G*partials(i,5)+H*partials(i,6)) &
@@ -1139,12 +1152,17 @@ subroutine hoshfordnormal(Tag,grad)
     
         n(i) = m/2*3**(m/2.)*I2**(m/2.-1.)*dI2*sum+(3*I2)**(m/2.)*dsum
 
+
     end do
        !n = n/norm2(n)
 !write(*,*) n/norm2(n)
 !write(8,*) tag(1,1), tag(2,2), n(1), n(2)
 call vec2tens(grad,n)
-grad = grad/norm2(grad)
+
+
+
+grad = grad*1/(2*m)*(sFi/2)**(1/m-1)
+!write(*,*) grad
 
 return
 end subroutine hoshfordnormal
@@ -1214,43 +1232,53 @@ subroutine Yoshidamodel(Tag,D,Dp)
     use global
     implicit none
 
-    real(8) , dimension(3,3) :: Dp,Dpt,Dpn,Tag,D,N, DdevT, tensprod,Ddev
+    real(8) , dimension(3,3) :: Dp,Dpt,Dpn,Tag,D,N, DdevT, tensprod,Ddev,Nnorm
     integer :: i,j,k,l
-    real(8) :: kronecker,lambdadot,lambdadottemp, theta,alpha, G, theta0 = 0.17, c1 = 0.3
+    real(8) :: kronecker,lambdadot,lambdadottemp, theta,alpha, G, theta0, c1 = 0.3
     real(8) , dimension(6,6)              :: Chook
     real(8) , dimension(6)                :: vec
     
+    Dp = 0
+    Dpt = 0
+    Dpn = 0
+    DdevT = 0
+    tensprod = 0
+    Ddev = 0
+    Nnorm = 0
+
+    
+    
+    
+    theta0 = 4.*pi/180.
     call hoshfordnormal(tag,N)
     call Elasticconstant(Chook,G)
-    
+    !write(*,*) N
+    Nnorm = N/norm2(N)
     
     do i = 1,3
         do j = 1,3
             do k = 1,3
                 do l = 1,3
             DdevT(i,j) = DdevT(i,j) + (1./2.*(kronecker(i,k)*kronecker(j,l)+kronecker(i,l)*kronecker(j,k))-1./3.*(id(i,j)*id(k,l)) &
-            -N(i,j)*N(k,l))*D(k,l)
+            -Nnorm(i,j)*Nnorm(k,l))*D(k,l)
                 end do
             end do
         end do
     end do
-   ! write(*,*) DdevT
-   ! write(*,*) Ddev
     Ddev = D-1./3.*(D(1,1)+D(2,2)+D(3,3))*id
     call contract2(Ddev, N, theta)
-    theta = acos(theta/norm2(Ddev))
-  !  write(*,*) theta
+    theta = acos(theta/norm2(Ddev)/norm2(N))
     
     if (theta > 0 .and. theta <= theta0 ) then
-        alpha = 1-c1*sqrt(16/G)
+        alpha = 1-c1*sqrt(3.6*16/G)
     else if (theta > theta0 .and. theta <= pi/2) then
-        alpha = (1-c1*sqrt(16/G))*((pi/2-theta)/(pi/2-theta0))
+        alpha = (1-c1*sqrt(3.6*16/G))*((pi/2-theta)/(pi/2-theta0))
     else if ( theta > pi/2 .and. theta < pi ) then
         alpha = 0
     end if   
     
     Dpt = alpha*DdevT 
- !   write(*,*) Dpt
+
    vec = (/ D(1,1), D(2,2), D(3,3), 2.*D(2,3),2.*D(1,3),2.*D(1,2)/)
    vec = matmul(Chook,vec)
    call vec2tens(tensprod,vec)
@@ -1261,10 +1289,11 @@ subroutine Yoshidamodel(Tag,D,Dp)
    call contract2(tensprod,N,lambdadottemp)
    
    lambdadot = lambdadot/lambdadottemp
-!write(*,*) lambdadot
+
 Dpn = lambdadot*N
-!write(*,*) Dpn
+
 Dp = Dpn+Dpt
+
 
 end subroutine Yoshidamodel
 
@@ -1279,3 +1308,29 @@ function kronecker(i,j)
     end if 
     return
 end function kronecker
+
+subroutine elastoplasticmoduli(Cep,coeff,tag,Active)
+    use global
+    implicit none
+
+
+    real(8), dimension(3,3,3,3) :: Cep,Cel4, dyadic
+    real(8), dimension(3,3) :: P,W,tag, CP, schmid_a,schmid_b
+    integer :: i,j,k,l,m,n,coeff
+    logical, dimension(12) :: Active
+
+
+    do m = 1,12
+    
+    !if (Active(m)) then   
+    !call slipsys(Schmid_a,m)
+    P = 1/2*(Schmid_a+transpose(schmid_a))
+    W = 1/2*(Schmid_a-transpose(schmid_a))
+    
+    do i = 1,3
+        do j = 1,3
+        end do
+        end do
+    !    end if 
+    end do
+    end subroutine elastoplasticmoduli

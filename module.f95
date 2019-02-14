@@ -1,13 +1,14 @@
 module global
     implicit none
 
-    real(8) , dimension(6,12)             :: slip
-    real(8) , dimension(6,6)              :: Cel
-    real(8) , dimension(:,:), Allocatable :: eul
-    integer                               :: nlines
-    real(8), dimension(3,3)               :: id
-    real(8)                               ::  dt, pi 
-    real(8) , dimension(:,:,:), Allocatable :: R                                      
+    real(8) , dimension(6,12)               :: slip
+    real(8) , dimension(6,6)                :: Cel
+    real(8) , dimension(:,:), Allocatable   :: eul
+    integer                                 :: nlines
+    real(8), dimension(3,3)                 :: id
+    real(8)                                 ::  dt, pi 
+    real(8) , dimension(:,:,:), Allocatable :: R    
+    logical                                 :: hardening                              
     
 
     contains
@@ -19,7 +20,8 @@ module global
     real(8) :: phi1, Phi, phi2
         pi = 4.D0*DATAN(1.D0)
         dt = 0.0001
-    
+        hardening = .true.
+        
     !Create identity matrix
     id = 0
     forall(i = 1:3) id(i,i) = 1
@@ -295,7 +297,7 @@ subroutine contract2(T,S,dprod)
 
     real(8), dimension(3,3), Intent(in) :: T, S
     real(8), Intent(out) :: dprod
-
+    dprod = 0
     dprod = T(1,1)*S(1,1) + T(2,2)*S(2,2) + T(3,3)*S(3,3) + &
             T(1,2)*S(1,2) + T(2,1)*S(2,1) + T(1,3)*S(1,3) + &
             T(3,1)*S(3,1) + T(2,3)*S(2,3) + T(3,2)*S(3,2)
