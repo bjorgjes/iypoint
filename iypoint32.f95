@@ -2,8 +2,9 @@ program ypoint
 use global
     implicit none
 
-integer :: part,bryter, k
-real(8) :: t1,t2,omp_get_wtime,pw1,pw2
+integer :: part,bryter, k, i
+real(8) :: t1,t2,omp_get_wtime,pw1,pw2,epsp
+real(8) , dimension(3,3) :: tag, D
 !real(8) , dimension(:,:), Allocatable ::eul
 real(8) , dimension(:,:,:), Allocatable  :: F0,Fp0
 real(8),  dimension(:,:), Allocatable :: S0
@@ -15,6 +16,7 @@ open(unit=8,file="eulerangles.txt",status='replace')
 open(unit=13,file="Dp.txt",status='replace')
 open(unit=14,file="Dp2.txt",status='replace')
 open(unit=16,file="Grad.txt",status='replace')
+open(unit=4,file="hardeningrate.txt",status='replace')
 call init()
 write(*,*) nlines
 
@@ -33,20 +35,27 @@ Allocate(s0(nlines,12))
 !!!                Used when calculating instantaneous yield surfaces, prior to setting bryter = 2.  
 !!!
 !!!   bryter = 4 - Used for strain path change, takes a prestrained crystal(F0,Fp0,S0) calculated using eg bryter = 1, and perform strain in a prescribed direction for a given plastic work. 
+!!!     
+D = 0
+D(1,1) = 1.
+D(2,2) = -1./2.
+D(3,3) = -1./2.
+Tag = 0
+epsp = 0
+do i = 1,100
+    write(*,*) i
+call yoshi(tag,D,epsp)
+write(*,*) tag(1,1), epsp
+end do
 
-
-
-
-
-
-pw1 = 0.003
+pw1 = 0.002
 bryter = 5
-call newton(1,2,bryter,F0,Fp0,S0,pw1) 
+!call newton(1,2,bryter,F0,Fp0,S0,pw1) 
 !write(*,*) bryter
 
 bryter = 6
-pw1 = 0.005
-call newton(0,3,bryter,F0,Fp0,S0,pw1)   
+pw1 = 0.002
+!call newton(0,3,bryter,F0,Fp0,S0,pw1)   
 !write(*,*) 'check1'
 !F0 = F0i
 !S0 = S0i
@@ -195,7 +204,7 @@ subroutine taylor(La,Tag,bryter,F0i,Fp0i,S0i,pw,Dp)
      
     !Declear all variables
  
-    real(8) :: phi1, Phi, phi2,dt0, sigmaeq, gammatot,pw,gammatoti,gammaskrank,dot, dl, nor1,nor2
+    real(8) :: phi1, Phi, phi2,dt0, sigmaeq, gammatot,pw,gammatoti,gammaskrank,dot, dl, nor1,nor2,epsp
     real(8) , dimension(3,3)  :: grad,T0 , Dp, Lb, Tagb, La0,Dp2
                         
     real(8) , dimension(3,3) :: La
@@ -224,12 +233,13 @@ subroutine taylor(La,Tag,bryter,F0i,Fp0i,S0i,pw,Dp)
     !Define velocity gradient
     !strainrate
         gammatot = 0
+        epsp = 0
     !Copies of the input variables, in order not to update the initial condition when calculating instantaneous yield surface.
         S0 = s0i 
         Fp0 = Fp0i  
         F0 = F0i  
 
-        propconst = (/0.0, 0.0, 0.0, 0.0, -10.0/)
+        propconst = (/0.0, 0.0, 0.0, 0.0, 0.0/)
     
     
  
@@ -283,10 +293,22 @@ else if (bryter == 3 ) then
     end do initalize3
     write(*,*) bryter
     end if 
+if (bcond == 2) then
+    La(1,1) = 1/sqrt(1.0+propconst(1)**2)
+    La(2,2) = propconst(1)**2/sqrt(1.0+propconst(1)**2)
+    La(1,2) = 0
+    La(2,1) = 0
+    La(1,3) = 0
+    La(3,1) = 0
+    La(2,3) = 0
+    La(3,2) = 0
+    La(3,3) = -1.0/3.0*(La(1,1)+La(2,2))
 
+end if   
 
+    gammaskrank = 0.000000001
+    
 
-    gammaskrank = 0.00001
  
     secit = 0
     dt0 = dt
@@ -296,7 +318,7 @@ else if (bryter == 3 ) then
     end if
 
 
-    iter: do while (switch < 5000000)     
+    iter: do    
     
        
    
@@ -309,7 +331,7 @@ case (1)
        ! write(*,*) La
     nor1 = norm2(La)
        call timestep(Tag, Dp, La, gammatot, gammatoti, Fp0, Fp0int, F0, F0int,S0in,s0,dt0)
-       write(*,*) sigma , Tag(1,1), Tag(2,2), gammatoti
+       !write(*,*) sigma , Tag(1,1), Tag(2,2), gammatoti
        do h = 1,4
         sigma(h) = Tag(pos1(h),pos2(h))
        end do
@@ -383,7 +405,7 @@ case (2)
          minl = minloc(sigma2, DIM = 1)
          maxl = maxloc(sigma2, DIM = 1)
          if (abs(sigma2(minl)) < 0.00000000001 .and. abs(sigma2(maxl)) < 0.00000000001) then
-           write(*,*) sigma2 , Tag(1,1), Tag(2,2), gammatoti
+           !write(*,*) sigma2 , Tag(1,1), Tag(2,2), gammatoti
          !   write(*,*) tag
             exit boundary2
          end if 
@@ -446,7 +468,7 @@ end select
             else
             dt0 = (pw-gammatot)*dt0/(gammatoti-gammatot)*0.5
             end if
-            write(*,*) dt0, sigma, gammatoti-pw, nor1, nor2
+            !write(*,*) dt0, sigma, gammatoti-pw, nor1, nor2
             switch = switch +1
             secit = secit +1
             if (secit > 30) then 
@@ -462,7 +484,7 @@ end select
         Tagc = Tagcint
         s0 = s0in
         gammatot = gammatoti 
-        
+        epsp = epsp+norm2(Dp)*sqrt(2./3.)*dt
         if (bryter == 5) then
             if (gammatot > gammaskrank) then
                 write(8,*) bryter, gammatoti
@@ -470,7 +492,7 @@ end select
                 dot = dot/norm2(La)/norm2(Dp)
             write(11,*) Tag(1,3),Tag(1,2), Tag(2,3), Tag(3,3) , dot , acos(dot), gammatot
             
-            gammaskrank = gammaskrank + 0.00001
+            gammaskrank = gammaskrank + 0.0000001
             !write(8,*) Tag(1,1),Tag(2,2), Dp(1,1)/sqrt(Dp(1,1)**2+Dp(2,2)**2),Dp(2,2)/sqrt(Dp(1,1)**2+Dp(2,2)**2.)
             write(8,*) 'La'
             write(8,*) La/norm2(La)
@@ -501,6 +523,9 @@ end select
             write(13,*) Tag(1,1), Tag(2,2), Dp(1,1)  /sqrt(  Dp(1,1)**2+Dp(2,2)**2),Dp(2,2)/sqrt(Dp(1,1)**2+Dp(2,2)**2)
             write(14,*) Tag(1,1), Tag(2,2), Dp2(1,1) /sqrt( Dp2(1,1)**2+Dp2(2,2)**2), Dp2(2,2)/sqrt(Dp2(1,1)**2+Dp2(2,2)**2)
             write(16,*) Tag(1,1), Tag(2,2), Grad(1,1)/sqrt(Grad(1,1)**2+Grad(2,2)**2),Grad(2,2)/sqrt(Grad(1,1)**2+Grad(2,2)**2)
+            
+            
+            !
             end if
         end if 
 
@@ -509,6 +534,7 @@ end select
             F0i  = F0
             S0i = S0   
             call Yoshidamodel(Tag,La,Dp2)
+         
            ! call hoshfordnormal(tag,grad)
            ! call contract2(Dp,grad,dot)
            ! write(*,*) dot/norm2(Dp)/norm2(grad)
@@ -562,7 +588,7 @@ end select
                 dot = dot/norm2(La)/norm2(Dp)
             write(11,*) Tag(1,3),Tag(1,2), Tag(2,3), Tag(3,3) , dot , acos(dot), gammatot
           
-            gammaskrank = gammaskrank + 0.000005
+            gammaskrank = gammaskrank + 0.00000005
             !write(8,*) Tag(1,1),Tag(2,2), Dp(1,1)/sqrt(Dp(1,1)**2+Dp(2,2)**2),Dp(2,2)/sqrt(Dp(1,1)**2+Dp(2,2)**2.)
             write(8,*) 'La'
             write(8,*) La/norm2(La)
@@ -593,6 +619,7 @@ end select
             write(13,*) Tag(1,1), Tag(2,2), Dp(1,1)  /sqrt(  Dp(1,1)**2+Dp(2,2)**2),Dp(2,2)/sqrt(Dp(1,1)**2+Dp(2,2)**2)
             write(14,*) Tag(1,1), Tag(2,2), Dp2(1,1) /sqrt( Dp2(1,1)**2+Dp2(2,2)**2), Dp2(2,2)/sqrt(Dp2(1,1)**2+Dp2(2,2)**2)
             write(16,*) Tag(1,1), Tag(2,2), Grad(1,1)/sqrt(Grad(1,1)**2+Grad(2,2)**2),Grad(2,2)/sqrt(Grad(1,1)**2+Grad(2,2)**2)
+            write(3,*) tag(1,1) , gammatot
             end if
         end if 
         
@@ -767,18 +794,19 @@ subroutine timestep(Tag, Dp, La, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,S0
     
     !Calculate increase in critical shear rate.
     s1 = s0(j,1:12)
-    
-     do i = 1,12
-        countera = 1
-        do q = 1,12
-            if (Active(q)) then 
-            call hparam(i,q,s0int,h,slip)
-            s1(i) = s1(i) + h*x(countera)
-            countera = countera+1
-            end if
-        end do
-    end do
-    
+    ! The logical parameter hardening is set in global module to determine if a hardening material is to be considered.
+    if (hardening .eqv. .true.) then
+        do i = 1,12
+             countera = 1
+                do q = 1,12
+                    if (Active(q)) then 
+                    call hparam(i,q,s0int,h,slip)
+                    s1(i) = s1(i) + h*x(countera)
+                    countera = countera+1
+                    end if
+                end do
+            end do
+    end if
     !Step 10, check consistency
     
     !Calculates resolved shear stress using updated stress in addition ti the vector for conistency and the final active slip systems
@@ -1001,8 +1029,13 @@ do i = 1,12
         counterb = 1
         do j = 1,12
             if (PA(j) )then
+                !!! The logical hardening is set in the global module if a hardening material is to be considered.
+                if (hardening .eqv. .true.) then
                 call hparam(i,j,s0,h,slip)
-                !write(7,*) h
+                else
+                h = 0
+                end if    
+                
                 call Acoeff(i,j,Ctr,coeffA)
                
                 sgn = tautr(i)*tautr(j)/abs(tautr(i)*tautr(j))
@@ -1101,7 +1134,7 @@ subroutine hoshfordnormal(Tag,grad)
     implicit none 
     real(8), dimension(3,3), intent(in) :: Tag
     real(8), dimension(3,3), intent(out) :: grad
-    real(8) :: A, B, C, F, G, H, dI2,dI3, dtheta, I2, I3, theta, m = 8.8 , dsum,sum, sFi
+    real(8) :: A, B, C, F, G, H, dI2,dI3, dtheta, I2, I3, theta, m = 8.8 , dsum,sum, sFi, fraction
     real(8) , dimension(6,6) :: partials
     integer :: i 
     real(8) , dimension(6) :: n
@@ -1124,17 +1157,23 @@ subroutine hoshfordnormal(Tag,grad)
     H = tag(1,2)
     I2 = (F**2+G**2+H**2)/3. + ((A-C)**2+(C-B)**2+(B-A)**2)/54.
     I3 = ((C-B)*(A-C)*(B-A))/54 + F*G*H - ((C-B)*F**2+(A-C)*G**2+(B-A)*H**2)/6
-    theta = acos(I3/I2**(3./2.))
+    if (I3/I2**(3./2.) > 1 .or. I3/I2**(3./2.) < -1) then
+        fraction = 1
+    else 
+    fraction = (I3/I2**(3./2.))
+    end if
+
+    theta = acos(fraction)
     sum = ((2*cos((2*theta+pi)/6.))**(m))+((2*cos((2*theta -  3*pi)/6.))**(m)) + ((-2*cos((2*theta +  5*pi)/6.))**(m))
     sFi = (3*I2)**(m/2.)*sum
     
-    
+        
     do i = 1,6
         dI2 = 2./3.*(F*partials(i,4)+G*partials(i,5)+H*partials(i,6)) &
         +2./54.*((A-C)*(partials(i,1)-partials(i,3))) &
         +2./54.*((C-B)*(partials(i,3)-partials(i,2))) &
         +2./54.*((B-A)*(partials(i,2)-partials(i,1)))
-        
+        !write(*,*) -1/sqrt(1-fraction**2)
 
         dI3 = 1./54.*((partials(i,3)-partials(i,2))*(A-C)*(B-A) & 
         + ((partials(i,1)-partials(i,3))*(B-A)+(A-C)*(partials(i,2)-partials(i,1)))*(C-B)) &
@@ -1142,8 +1181,15 @@ subroutine hoshfordnormal(Tag,grad)
         - (2*F/6*partials(i,4)*(C-B)+F**2/6*(partials(i,3)-partials(i,2))) &
         - (2*G/6*partials(i,5)*(A-C)+G**2/6*(partials(i,1)-partials(i,3))) &
         - (2*H/6*partials(i,6)*(B-A)+H**2/6*(partials(i,2)-partials(i,1))) 
-
-        dtheta = -1/sqrt(1-I3**2/I2**3)*(dI3*I2**(3./2.)-3./2.*I2**(1./2.)*dI2*I3)/I2**3
+        
+        if (fraction == 1) then
+            dtheta = 0
+        else
+        dtheta = -1/sqrt(1-fraction**2)*(dI3*I2**(3./2.)-3./2.*I2**(1./2.)*dI2*I3)/I2**3
+        end if
+        !write(*,*) (dI3*I2**(3./2.)-3./2.*I2**(1./2.)*dI2*I3)/I2**3
+       
+       ! write(*,*) dtheta
         
         dsum = m*dtheta* &
         (  ( 2*cos((2*theta +   pi)/6.))**(m-1) * (-4./6.*sin((2*theta +   pi)/6)) &
@@ -1234,7 +1280,7 @@ subroutine Yoshidamodel(Tag,D,Dp)
 
     real(8) , dimension(3,3) :: Dp,Dpt,Dpn,Tag,D,N, DdevT, tensprod,Ddev,Nnorm
     integer :: i,j,k,l
-    real(8) :: kronecker,lambdadot,lambdadottemp, theta,alpha, G, theta0, c1 = 0.3
+    real(8) :: lambdadot,lambdadottemp, theta,alpha, G, theta0, c1 = 0.3
     real(8) , dimension(6,6)              :: Chook
     real(8) , dimension(6)                :: vec
     
@@ -1297,40 +1343,382 @@ Dp = Dpn+Dpt
 
 end subroutine Yoshidamodel
 
-function kronecker(i,j)
-    implicit none
-    integer :: i,j
-    real(8) :: kronecker
-    if (i == j ) then 
-        kronecker = 1
-    else 
-        kronecker = 0
-    end if 
-    return
-end function kronecker
 
-subroutine elastoplasticmoduli(Cep,coeff,tag,Active)
+
+subroutine elastoplasticmoduli(Cep,tag,Active,tautr,s0,Ctr)
     use global
     implicit none
 
 
     real(8), dimension(3,3,3,3) :: Cep,Cel4, dyadic
-    real(8), dimension(3,3) :: P,W,tag, CP, schmid_a,schmid_b
-    integer :: i,j,k,l,m,n,coeff
+    real(8), dimension(3,3) :: P,W,tag, CP, schmid_a,schmid_b,Ctr,Leftdy,PC
+    integer :: i,j,k,l,t,q,coeff,countera,counterb
     logical, dimension(12) :: Active
+    real(8), dimension(3) :: m,n
+    real(8), dimension(12,12) :: Aplus
+    real(8), dimension(12) :: s0, tautr
 
-
-    do m = 1,12
-    
-    !if (Active(m)) then   
-    !call slipsys(Schmid_a,m)
-    P = 1/2*(Schmid_a+transpose(schmid_a))
-    W = 1/2*(Schmid_a-transpose(schmid_a))
-    
     do i = 1,3
+        Cel4(i,i,i,i) = Cel(1,1)
         do j = 1,3
+                   Cel4(i,i,j,j) = Cel(1,2)
+                   Cel4(i,j,i,j) = Cel(6,6)
         end do
+    end do
+
+    Do i = 1,3
+    do j = 1,3
+        do l = 1,3
+            do k = 1,3
+                CP(i,j) = CP(i,j)+Cel4(i,j,l,k)*P(k,l)
+            end do
         end do
-    !    end if 
+    end do
+end do
+        
+
+
+    call pseudoinv(Active, tautr,s0,Ctr, Aplus)
+    countera = 1 
+    do t = 1,12
+
+    
+    if (Active(t) .eqv. .true.) then  
+        
+            call slipsys(slip,Schmid_a,m,n,t)
+            P = 1./2.*(Schmid_a+transpose(schmid_a))
+            W = 1./2.*(Schmid_a-transpose(schmid_a)) 
+            counterb = 1
+            
+            
+            ! calculate second order tensor (Ce:P+W_a*Sigma-Sigma*W_a)
+            leftdy = 0
+
+            Do i = 1,3
+            do j = 1,3
+                do l = 1,3
+                    do k = 1,3
+                        CP(i,j) = CP(i,j)+Cel4(i,j,l,k)*P(k,l)
+                    end do
+                end do
+            end do
+             end do
+             write(*,*) CP
+             CP = 0
+            call voigt(P,CP) 
+            write(*,*) CP
+            do i = 1,3
+                do j = 1,3
+                   do k = 1,3
+                     leftdy = leftdy(i,j) + W(i,k)*Tag(k,j)- Tag(i,k)*W(k,j)
+                   end do
+                end do
+            end do
+            
+            do q = 1,12
+            if (Active(q)) then
+
+                call slipsys(slip,Schmid_a,m,n,q)
+              P = 1./2.*(Schmid_a+transpose(schmid_a))
+            ! Calculate right hand side of dyadic product (P:Ce)
+            
+              do i = 1,3
+                do j = 1,3
+
+                end do
+            end do
+            end if
+            end do
+    
+        
+       end if 
     end do
     end subroutine elastoplasticmoduli
+
+
+    subroutine pseudoinv(PA,tautr,s0,Ctr,Aplus)    !Calculates the slip increments
+        use global
+        implicit none
+        
+        real(8) ::  coeffA, switch, sgn,h 
+        real(8) , dimension(3,3) :: Ctr
+        real(8) , dimension(12) :: tautr, s0
+        logical, dimension(12) :: PA
+        double precision, dimension(12,12) :: A, U, VT, Eps, Aplus, Atest, Adisp, Eps1
+        integer :: i,j,countera,LWMAX , sizeA,counterb, INFO,lda, sw
+        double precision, dimension(12):: x,b,Sing,test
+        double precision, dimension(:), allocatable:: WORK
+        integer :: minpos,teller
+    
+     lda = 12
+     sw = 0
+        LWMAX = 1000
+    Allocate(WORK(LWMAX))
+    switch = -1
+    teller = 1
+    ! The process must be repeated until all calculated slip increments are positive
+    outer: do
+        A = 0
+        U = 0
+        VT = 0
+        Aplus = 0
+        x = 0
+        b =0
+        Sing = 0
+        Eps = 0
+        test =0
+        Atest =0
+        Adisp = 0 
+        Eps1 = 0
+      
+    
+    !Allocate size of matrices used for SVD 
+    sizeA = COUNT(PA)
+    
+    
+    
+    countera = 1   ! Counter used to index the position of each element of A
+    do i = 1,12
+        if (PA(i) ) then
+            b(countera) = abs(tautr(i))-s0(i)
+            counterb = 1
+            do j = 1,12
+                if (PA(j) )then
+                    !!! The logical hardening is set in the global module if a hardening material is to be considered.
+                    if (hardening .eqv. .true.) then
+                    call hparam(i,j,s0,h,slip)
+                    else
+                    h = 0
+                    end if    
+                    
+                    call Acoeff(i,j,Ctr,coeffA)
+                   
+                    sgn = tautr(i)*tautr(j)/abs(tautr(i)*tautr(j))
+                    
+                    A(countera,counterb) = sgn*coeffA+h
+                    counterb = counterb+1
+                end if 
+            end do
+            countera = countera+1
+        end if 
+    
+    end do
+    
+    Adisp = A
+    
+    ! Compute singular value decomposition of A
+    
+    !call dgesvd('A','A',sizeA,sizeA,A(1:sizeA,1:sizeA),sizeA,Sing(1:sizeA),U(1:sizeA,1:sizeA),sizeA,VT(1:sizeA,1:sizeA),sizeA, &
+    !             WORK, LWMAX ,INFO)
+    call dgesvd('A','A',sizeA,sizeA,Adisp,lda,Sing,U,lda,VT,lda, &
+                WORK, LWMAX ,INFO)
+    
+    !Calculate sigma+  
+    do i = 1,12   
+    if (Sing(i) > 0.000000001) then
+        eps(i,i) = 1/Sing(i)
+        Eps1(i,i) = Sing(i)
+    Else
+        Eps(i,i) = 0
+        Eps1(i,i) = 0
+    end if
+    end do
+    !write(7,*) 'Sing'
+    !write(7,*) Sing
+    !write(7,*) INFO
+    
+    
+    Aplus = matmul(transpose(VT),matmul(Eps,transpose(U)))   !pseudoinverse
+    !Loop through the calculated deltagammas in order to remove the negative ones from the logical array PA
+    minpos = minloc(x, DIM=1)
+    countera = 1
+    do i = 1,12
+        if (countera == sizeA+1) then
+            exit
+        else if (PA(i) .and. x(countera) <= 0 .and. countera == minpos) then
+            PA(i) = .FALSE.
+            countera = countera+1
+        else if (PA(i)) then
+            countera =countera+1
+        end if
+    end do
+    
+    
+    
+    !Criterion to determine final set of active slip systems, if all deltagamma > 0 the iteration is ended
+    if (count(x(1:sizeA) <= 0 ) == 0) then
+        switch = 1
+       
+        exit outer
+    end if
+    end do outer
+    
+    return
+    end subroutine pseudoinv
+    
+
+    subroutine yoshi(tag,D,epsp)
+        use global
+        implicit none
+
+        real(8), dimension(3,3,3,3) :: Cep, dyadic, T, CT,Cel4
+        real(8), dimension(3,3) :: N, D, tag, dtag,Nnorm, CN, NC, Ddev
+        real(8) :: h , G,NCN, theta, c1= 0.3, theta0, alpha, sigma, sigma0, dt0, epsp, lamb
+        real(8) , dimension(6,6) :: Chook
+        integer :: i,j,k,l,p,q
+        !h = 0
+        dt0 = 0.00001
+        theta0 = pi/18.
+        sigma0 = 45.
+        !N = 0
+        !CN = 0
+        !Cel4 = 0
+        !NC = 0 
+        !Ddev = 0
+        !dtag = 0
+        !sigma = 0
+        !dyadic = 0
+        !Cep = 0
+        !Chook = 0
+        !G = 0
+        !Nnorm = 0
+        !T = 0
+        !CT = 0
+
+
+
+     
+        
+        
+
+    
+    call Elasticconstant(Chook,G)
+   !write(*,*) tag
+    call hoshfordnormal(tag,N)
+    Nnorm = N/norm2(N)
+    
+
+   !! Convert 6x6 elastic matrix to 4th order tensor
+    do i = 1,3
+        do j = 1,3
+            do k =1,3
+                do l = 1,3
+                    Cel4(i,j,k,l) = Chook(1,2)*kronecker(i,j)*kronecker(k,l)+(Chook(1,1)-Chook(1,2))/2* & 
+                                    (kronecker(i,k)*kronecker(j,l)+kronecker(i,l)*kronecker(j,k))
+                end do
+            end do
+        end do
+    end do
+
+    
+
+    call eqvstress(tag,sigma)
+    write(*,*) sigma
+    if (sigma < sigma0) then
+        
+        do i = 1,3
+            do j = 1,3
+                do k =1,3
+                    do l = 1,3
+                        dtag(i,j) = dtag(i,j) + Cel4(i,j,k,l)*D(l,k)
+                    end do
+                end do
+            end do
+        end do
+    else if (sigma >= sigma0) then
+
+
+    !Build T tensor ¨
+    !Calculate Ce:N
+    !Calculate N:Ce
+        do i = 1,3
+            do j = 1,3
+                do k =1,3
+                    do l = 1,3
+                        T(i,j,k,l) = 1./2.*(kronecker(i,k)*kronecker(j,l)+kronecker(i,l)*kronecker(j,k))-1./3.*(id(i,j)*id(k,l)) &
+                                    -Nnorm(i,j)*Nnorm(k,l)  
+
+                        CN(i,j) = CN(i,j)+Cel4(i,j,k,l)*N(l,k)  
+                    
+                        NC(i,j) = NC(i,j)+N(l,k)*Cel4(k,l,i,j)               
+                    end do
+                end do
+            end do
+        end do
+       ! write(*,*) 'CN'
+       ! write(*,*) 'N'
+       ! 
+       ! write(*,*) CN
+       ! write(*,*) N
+        !Calculate N:Ce:N
+
+        call contract2(N,CN,NCN)
+        call contract2(D,NC,lamb)
+
+        lamb = lamb/NCN/(sqrt(2./3.)*norm2(N))
+        write(*,*) lamb
+        epsp = epsp + sqrt(2./3.)*norm2(N)*lamb*dt0
+
+        !Deviatoric D
+        Ddev = D - id*(D(1,1)+D(2,2)+D(3,3))/3
+        !Calculate theta
+        call contract2(Ddev,N,theta)
+        theta = acos(theta/norm2(Ddev)/Norm2(N))
+
+        if (theta > 0 .and. theta <= theta0 ) then
+            alpha = 1-c1*sqrt(3.6*16/G)
+        else if (theta > theta0 .and. theta <= pi/2) then
+            alpha = (1-c1*sqrt(3.6*16/G))*((pi/2-theta)/(pi/2-theta0))
+        else if ( theta > pi/2 .and. theta < pi ) then
+            alpha = 0
+        end if   
+
+        !Calculate outer product of CN and NC
+
+        do i = 1,3
+            do j = 1,3
+                do k =1,3
+                    do l = 1,3
+                        dyadic(i,j,k,l) = CN(i,j)*NC(k,l)
+                    end do
+                end do
+            end do
+        end do  
+
+        !! Calculate CT
+
+        do i = 1,3
+            do j = 1,3
+                do k =1,3
+                    do l = 1,3
+                        do p = 1,3
+                            do q= 1,3
+                                    CT(i,j,k,l) = CT(i,j,k,l) + alpha*Cel4(i,j,q,p)*T(p,q,k,l)
+                            end do
+                        end do
+                    end do
+                end do
+            end do
+        end do  
+    
+     Cep = Cel4 - dyadic/(NCN+sqrt(2./3.)*norm2(N)*h) - CT  
+     do i = 1,3
+        do j = 1,3
+            do k =1,3
+                do l = 1,3
+                    dtag(i,j) = dtag(i,j) + Cep(i,j,k,l)*D(l,k)
+                end do
+            end do
+        end do
+    end do
+    end if
+    write(*,*) dtag
+    tag = tag+dtag*dt0
+
+    !write(*,*) tag
+
+
+    return
+    end subroutine yoshi
+
+    

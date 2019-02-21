@@ -19,8 +19,8 @@ module global
     integer :: i
     real(8) :: phi1, Phi, phi2
         pi = 4.D0*DATAN(1.D0)
-        dt = 0.0001
-        hardening = .true.
+        dt = 0.00001
+        hardening = .false.
         
     !Create identity matrix
     id = 0
@@ -386,5 +386,51 @@ subroutine eulang(R,phi1,Phi,phi2)
     coeff = tot(1,1)+tot(2,2)+tot(3,3)
     return
     end subroutine Acoeff
+
+    subroutine eqvstress(tag,sigma)
+        !! Calculate equivalent stress of a Hoshford/Hersey yield surface from the stress tensor tag. Following the procedure derived in Barlat 1991
+        
+        implicit none 
+        real(8), dimension(3,3), intent(in) :: Tag
+        real(8) :: A, B, C, F, G, H, I2, I3, theta, m = 8.8 ,sum, sFi, sigma
+       if (norm2(tag) == 0) then
+        sigma = 0
+       else 
+
+
+
+
+        A = tag(2,2)-tag(3,3)
+        B = tag(3,3)-tag(1,1)
+        C = tag(1,1)-tag(2,2)
+        F = tag(2,3)
+        G = tag(1,3)
+        H = tag(1,2)
+        I2 = (F**2+G**2+H**2)/3. + ((A-C)**2+(C-B)**2+(B-A)**2)/54.
+        I3 = ((C-B)*(A-C)*(B-A))/54 + F*G*H - ((C-B)*F**2+(A-C)*G**2+(B-A)*H**2)/6
+        if (I3/I2**(3./2.) > 1) then
+            theta = 0
+        else 
+        theta = acos(I3/I2**(3./2.))
+        end if
+        sum = ((2*cos((2*theta+pi)/6.))**(m))+((2*cos((2*theta -  3*pi)/6.))**(m)) + ((-2*cos((2*theta +  5*pi)/6.))**(m))
+        sFi = (3*I2)**(m/2.)*sum    
+       
+        sigma = (sFi/2.)**(1./m)
+       end if 
+    return
+    end subroutine eqvstress
+
+    function kronecker(i,j)
+        implicit none
+        integer :: i,j
+        real(8) :: kronecker
+        if (i == j ) then 
+            kronecker = 1
+        else 
+            kronecker = 0
+        end if 
+        return
+    end function kronecker
 
 end module
