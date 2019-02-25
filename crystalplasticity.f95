@@ -93,7 +93,7 @@ subroutine taylor(La,Tag,bryter,F0i,Fp0i,S0i,pw,Dp)
     integer :: i, switch , o,p,k,h, bryter,secit
     real(8) , dimension(4,4)  :: Jacob, Jinv
     real(8) , dimension(4)  :: sigma, offdl
-    integer :: LDA = 4,NRHS = 1, Info,  minl, maxl,nit,bcond=2
+    integer :: LDA = 4,NRHS = 1, Info,  minl, maxl,nit,bcond=1
     integer , dimension(4) :: IPIV
     real(8), dimension(5) :: propconst, offdl2, sigma2, IPIV2
     real(8) , dimension(5,5)  :: Jacob2, Jinv2

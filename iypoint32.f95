@@ -40,20 +40,20 @@ D(1,1) = -1
 D(2,2) = 1./2.
 D(3,3) = 1./2.
 Tag = 0
-epsp = 45.
+
 dt0 = 0.00001
-call elasticsolution(D,tag,epsp)
+!call elasticsolution(D,tag)
 epsp = 0
 do i = 1,50
-    write(*,*) i
+!    write(*,*) i
 
-call yoshi(tag,D,epsp,dt0)
-write(*,*) tag(1,1), epsp
+!call yoshi(tag,D,epsp,dt0)
+!write(*,*) tag(1,1), epsp
 end do
 
-pw1 = 1
+pw1 = 0.006
 bryter = 5
-k = 0
+k = 1
 !call constexpr(k,2,bryter,pw1)
 call newton(1,2,bryter,F0,Fp0,S0,pw1) 
 !write(*,*) bryter
@@ -178,12 +178,12 @@ subroutine hoshfordnormal(Tag,grad)
     else 
     fraction = (I3/I2**(3./2.))
     end if
-
+    
     theta = acos(fraction)
     sum = ((2*cos((2*theta+pi)/6.))**(m))+((2*cos((2*theta -  3*pi)/6.))**(m)) + ((-2*cos((2*theta +  5*pi)/6.))**(m))
     sFi = (3*I2)**(m/2.)*sum
     
-        
+    !write(*,*) theta, sum, sFi  
     do i = 1,6
         dI2 = 2./3.*(F*partials(i,4)+G*partials(i,5)+H*partials(i,6)) &
         +2./54.*((A-C)*(partials(i,1)-partials(i,3))) &
@@ -198,14 +198,14 @@ subroutine hoshfordnormal(Tag,grad)
         - (2*G/6*partials(i,5)*(A-C)+G**2/6*(partials(i,1)-partials(i,3))) &
         - (2*H/6*partials(i,6)*(B-A)+H**2/6*(partials(i,2)-partials(i,1))) 
         
-        if (fraction == 1) then
+        if (fraction == 1 .or. fraction == -1) then
             dtheta = 0
         else
         dtheta = -1/sqrt(1-fraction**2)*(dI3*I2**(3./2.)-3./2.*I2**(1./2.)*dI2*I3)/I2**3
         end if
         !write(*,*) (dI3*I2**(3./2.)-3./2.*I2**(1./2.)*dI2*I3)/I2**3
        
-       ! write(*,*) dtheta
+        !write(*,*) dtheta
         
         dsum = m*dtheta* &
         (  ( 2*cos((2*theta +   pi)/6.))**(m-1) * (-4./6.*sin((2*theta +   pi)/6)) &
@@ -214,7 +214,7 @@ subroutine hoshfordnormal(Tag,grad)
     
         n(i) = m/2*3**(m/2.)*I2**(m/2.-1.)*dI2*sum+(3*I2)**(m/2.)*dsum
 
-
+        !write(*,*) dI2, dI3, dtheta, dsum
     end do
        !n = n/norm2(n)
 !write(*,*) n/norm2(n)
@@ -314,26 +314,26 @@ end subroutine Yoshidamodel
 
         real(8), dimension(3,3,3,3) :: Cep, dyadic, T, CT,Cel4
         real(8), dimension(3,3) :: N, D, tag, dtag,Nnorm, CN, NC, Ddev, tagcheck
-        real(8) :: h , G,NCN, theta, c1= 0.3, theta0, alpha, sigma, sigma0, dt0, epsp, lamb, sigmacheck
+        real(8) :: h , G,NCN, theta, c1= 0.3, theta0, alpha, sigma, sigma0, dt0, epsp, lamb, sigmacheck, dt1, consistency
         real(8) , dimension(6,6) :: Chook
         integer :: i,j,k,l,p,q
         
         
         theta0 = pi/18.
-        sigma0 = 45.
-        h = 0.
+        sigma0 = gaveps(epsp)
+        h = haveps(epsp)
         dtag = 0
 
 
      
-        
+        call Elasticconstant(Chook,G)
+  
+        call eqvstress(tag,sigma)
         
 
     
-    call Elasticconstant(Chook,G)
-   write(*,*) tag
-    call hoshfordnormal(tag,N)
-    Nnorm = N/norm2(N)
+   
+   
     
 
    !! Convert 6x6 elastic matrix to 4th order tensor
@@ -348,29 +348,58 @@ end subroutine Yoshidamodel
         end do
     end do
 
-    
-
+    !write(*,*) epsp, abs(sigma0 - sigma)
+    if (epsp == 0 .and. abs(sigma0 - sigma) > 0.00000000001) then
     !call eqvstress(tag,sigma)
     !write(*,*) sigma
-    
+    !write(*,*) 'Elastic'
         
-     !   do i = 1,3
-     !       do j = 1,3
-     !           do k =1,3
-     !               do l = 1,3
-     !                   dtag(i,j) = dtag(i,j) + Cel4(i,j,k,l)*D(l,k)
-     !               end do
-     !           end do
-     !       end do
-     !   end do
-     !   tagcheck = tag+dtag*dt0
-    !call eqvstress(tagcheck,sigmacheck)
-    !if (sigmacheck > sigma0) then
+        do i = 1,3
+            do j = 1,3
+                do k =1,3
+                    do l = 1,3
+                        dtag(i,j) = dtag(i,j) + Cel4(i,j,k,l)*D(l,k)
+                    end do
+                end do
+            end do
+        end do
+        tagcheck = tag+dtag*dt0
+    call eqvstress(tagcheck,sigmacheck)
+    if (sigmacheck > sigma0) then
+        consistency = abs(sigmacheck - sigma0)
+        dt1 = dt0
+        !write(*,*) consistency
+        do while (consistency > 0.000000000001) 
+        !do i = 1,20
+  
+            tagcheck = tag+dtag*dt1
+            call eqvstress(tagcheck,sigmacheck)
+            consistency = abs(sigmacheck - sigma0)
+            write(*,*) dt1, consistency
+            if (sigmacheck > sigma0 ) then 
+            dt1 = (sigma0-sigma)/(sigmacheck-sigma)*dt1
+            !write(*,*) dt1
+            
+            else
+            tag = tagcheck
+            sigma = sigmacheck
+            end if
         
-
+        end do
+    else
+        tag = tagcheck
+    end if 
+    !write(*,*) sigmacheck - sigma0
+else
+    !write(*,*) 'consistency'
     !Build T tensor ¨
     !Calculate Ce:N
     !Calculate N:Ce
+
+    !write(*,*) tag
+    call hoshfordnormal(tag,N)
+    !write(*,*) N
+    Nnorm = N/norm2(N)
         do i = 1,3
             do j = 1,3
                 do k =1,3
@@ -412,7 +441,7 @@ end subroutine Yoshidamodel
         else if ( theta > pi/2 .and. theta < pi ) then
             alpha = 0
         end if   
-        write(*,*) alpha
+        !write(*,*) alpha
         !Calculate outer product of CN and NC
 
         do i = 1,3
@@ -452,11 +481,12 @@ end subroutine Yoshidamodel
         end do
     end do
     tag = tag+dtag*dt0
-   
-    
-   
-    write(*,*) dtag
-    write(*,*) sigma, sigmacheck
+end if 
+   ! call eqvstress(tag,sigma)
+   ! write(*,*) sigma,gaveps(epsp), sigma-gaveps(epsp)
+   !
+   ! write(*,*) dtag
+   ! write(*,*) 
 
 
     return
@@ -472,7 +502,7 @@ end subroutine Yoshidamodel
         real(8), dimension(5) :: propconst, offdl2, sigma2, IPIV2
         integer, dimension(5) :: pos1, pos2
         real(8) :: dt0,gammaskrank, dl
-        real(8) , dimension(3,3)  :: Lb, Tagb, La
+        real(8) , dimension(3,3)  :: Lb, Tagb, La, Dp
         
         integer ::  switch , p,k,h, bryter,secit,part
         real(8) , dimension(4,4)  :: Jacob, Jinv
@@ -491,7 +521,7 @@ end subroutine Yoshidamodel
                     La = 0 
             La(1,1) = cos(pi*k/part)
             La(2,2) = sin(pi*k/part)
-            La(3,3) =-0.5*(La(1,1)+La(2,2))
+            La(3,3) =-0.3*(La(1,1)+La(2,2))
             La(1,2) = 0
             La(2,1) = 0
             La(1,3) = 0
@@ -499,9 +529,9 @@ end subroutine Yoshidamodel
             La(2,3) = 0
             La(3,2) = 0
 
+            dt0 = dt
+iter: do while (switch < 10000)
 
-iter: do while (switch < 1)
-dt0 = dt
 
 
 Select case (bcond)
@@ -520,9 +550,9 @@ case (1)
       ! write(*,*) sigma
          minl = minloc(sigma, DIM = 1)
          maxl = maxloc(sigma, DIM = 1)
-         write(*,*) La
+         
          if (abs(sigma(minl)) < 0.00000000001 .and. abs(sigma(maxl)) < 0.00000000001) then
-            write(*,*) sigma(4) , Tagi(1,1), Tagi(2,2), epspi
+            !write(*,*) sigma(4) , Tagi(1,1), Tagi(2,2), epspi
             exit boundarycond
          end if 
 !!!!!! Calculate Jacobian matrix in order to satisfy boundary condition
@@ -539,7 +569,8 @@ case (1)
                 end if
 
                 call yoshi(Tagb,Lb,epspi,dt0)
-            jacob(k,p) = (Tagb(pos1(k),pos2(k))-Tag(pos1(k),pos2(k)))/dl
+            jacob(k,p) = (Tagb(pos1(k),pos2(k))-Tagi(pos1(k),pos2(k)))/dl
+            
             end do
         end do
         !write(*,*) tag
@@ -626,9 +657,10 @@ if (bryter == 1 .or. bryter == 5 .or. bryter == 4) then
         if (strain == 0) then
             dt0 = dt0/2
         else
-        dt0 = (strain-epsp)*dt0/(epspi-epsp)*0.5
+        dt0 = (strain-epsp)*dt0/(epspi-epsp)*0.7
         end if
         secit = secit +1
+        write(*,*) dt0, epspi, epsp
         switch = switch + 1
         if (secit > 30) then 
             write(*,*) epspi
@@ -646,7 +678,10 @@ if (bryter == 1 .or. bryter == 5 .or. bryter == 4) then
         if (epsp > gammaskrank) then
             write(8,*) bryter, epspi
             
-        write(11,*) Tag(1,3),Tag(1,2), Tag(2,3), Tag(3,3) ,epsp
+        write(11,*) Tag(1,3), Tag(1,2), Tag(2,3), Tag(3,3) ,epsp
+        call Yoshidamodel(tag,La,Dp)
+        
+        write(13,*) Tag(1,1), Tag(2,2) , Dp(1,1), Dp(2,2) 
         gammaskrank = gammaskrank + 0.0000001
         
         end if
@@ -696,7 +731,8 @@ else if (bryter == 2 .or. bryter == 6) then
             write(8,*) bryter, epspi
             
         write(11,*) Tag(1,1), tag(2,2), Tag(1,3),Tag(1,2), Tag(2,3), Tag(3,3),  epsp
-      
+            call Yoshidamodel(tag,La,Dp)
+
         gammaskrank = gammaskrank + 0.00000005
         !write(8,*) Tag(1,1),Tag(2,2), Dp(1,1)/sqrt(Dp(1,1)**2+Dp(2,2)**2),Dp(2,2)/sqrt(Dp(1,1)**2+Dp(2,2)**2.)
         
@@ -716,7 +752,7 @@ switch = switch +1
 
 end subroutine constexpr
 
-subroutine elasticsolution(D,tag, sigma0)
+subroutine elasticsolution(D,tag)
 use crystalplasticity
     implicit none
 real(8) sigma, sigma0, G, dt0, consistency, sigma1, dt1, dtt
@@ -725,8 +761,8 @@ real(8), dimension(3,3) :: D, tag, dtag, tag1
 real(8), dimension(3,3,3,3) :: Cel4
 integer :: i,j,k,l
 
-
-
+sigma= 0
+sigma0 = gaveps(sigma)
 
     call elasticconstant(Chook,G)
      

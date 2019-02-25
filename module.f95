@@ -20,7 +20,7 @@ module global
     integer :: i
     real(8) :: phi1, Phi, phi2
         pi = 4.D0*DATAN(1.D0)
-        dt = 0.00001
+        dt = 0.0001
         hardening = .false.
         
     !Create identity matrix
@@ -258,5 +258,25 @@ subroutine eulang(R,phi1,Phi,phi2)
         return
         end subroutine slipsys
         
+function gaveps(epsp)
+    implicit none
+    real(8) :: sigma0, eps0, n, gaveps, epsp
+    sigma0 = 48.07971246
+    n = 0.645430868
+    eps0 =  0.016142686
+    gaveps = sigma0*(1+epsp/eps0)**n
+    return
+end function gaveps
+
+function haveps(epsp)
+    implicit none
+    real(8) :: sigma0, eps0, n, haveps,epsp
+    sigma0 = 48.07971246
+    n = 0.645430868
+    eps0 =  0.016142686
+    haveps = n*sigma0*(1+epsp/eps0)**(n-1)/eps0
+    return
+end function haveps
+
 
 end module
