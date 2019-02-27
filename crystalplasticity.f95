@@ -84,7 +84,7 @@ subroutine taylor(La,Tag,bryter,F0i,Fp0i,S0i,pw,Dp)
     !Declear all variables
  
     real(8) :: phi1, Phi, phi2,dt0, sigmaeq, gammatot,pw,gammatoti,gammaskrank,dot, dl, nor1,nor2,epsp
-    real(8) , dimension(3,3)  :: grad,T0 , Dp, Lb, Tagb, La0,Dp2
+    real(8) , dimension(3,3)  :: grad,T0 , Dp, Lb, Tagb, La0,Dp2, Lc, tagcc
                         
     real(8) , dimension(3,3) :: La
     real(8) , dimension(3,3), intent(out)  :: Tag
@@ -93,21 +93,21 @@ subroutine taylor(La,Tag,bryter,F0i,Fp0i,S0i,pw,Dp)
     integer :: i, switch , o,p,k,h, bryter,secit
     real(8) , dimension(4,4)  :: Jacob, Jinv
     real(8) , dimension(4)  :: sigma, offdl
-    integer :: LDA = 4,NRHS = 1, Info,  minl, maxl,nit,bcond=1
+    integer :: LDA = 4,NRHS = 1, Info,  minl, maxl,nit,bcond=2
     integer , dimension(4) :: IPIV
     real(8), dimension(5) :: propconst, offdl2, sigma2, IPIV2
     real(8) , dimension(5,5)  :: Jacob2, Jinv2
     integer, dimension(5) :: pos1, pos2
-    real(8) :: pwpercision
+    real(8) :: pwpercision, epspi
     
     ! The percision of the plastic work given in relative fraction
-    pwpercision = 0.0000000001
+    pwpercision = 0.00000001
     !Timeincrement
     !dt0 = 0.0000001
 
     pos1 = (/1, 1, 2, 3, 2/)
     pos2 =(/2, 3, 3, 3, 2/)
-    dl = 0.0000001
+    dl = 0.00001
     La0 = La
     !Define velocity gradient
     !strainrate
@@ -173,8 +173,8 @@ else if (bryter == 3 ) then
     write(*,*) bryter
     end if 
 if (bcond == 2) then
-    La(1,1) = 1/sqrt(1.0+propconst(1)**2)
-    La(2,2) = propconst(1)**2/sqrt(1.0+propconst(1)**2)
+    La(1,1) = 1/sqrt(1.0+propconst(5)**2)
+    La(2,2) = propconst(5)**2/sqrt(1.0+propconst(5)**2)
     La(1,2) = 0
     La(2,1) = 0
     La(1,3) = 0
@@ -206,21 +206,21 @@ Select case (bcond)
 case (1)    
 !!! Iteration to ensure boundary condition is satisfied at througout all timesteps. 
     nit = 0   
-    boundarycond: do  while (nit < 10)  
-       ! write(*,*) La
-    nor1 = norm2(La)
+    boundarycond: do  while (nit < 15)  
+    
        call timestep(Tag, Dp, La, gammatot, gammatoti, Fp0, Fp0int, F0, F0int,S0in,s0,dt0)
-       !write(*,*) sigma , Tag(1,1), Tag(2,2), gammatoti
+       
        do h = 1,4
         sigma(h) = Tag(pos1(h),pos2(h))
        end do
-      ! write(*,*) sigma
+       write(*,*) sigma , Tag(1,1), Tag(2,2), epsp+norm2(Dp)*sqrt(2./3.)*dt0, dt0, epsp
          minl = minloc(sigma, DIM = 1)
          maxl = maxloc(sigma, DIM = 1)
          if (abs(sigma(minl)) < 0.00000000001 .and. abs(sigma(maxl)) < 0.00000000001) then
-            
-         !   write(*,*) tag
+            !write(*,*) sigma , Tag(1,1), Tag(2,2), gammatoti
+   
             exit boundarycond
+
          end if 
 !!!!!! Calculate Jacobian matrix in order to satisfy boundary condition
        do k = 1,4
@@ -234,11 +234,19 @@ case (1)
                 end if
 
                 call timestep(Tagb, Dp, Lb, gammatot, gammatoti, Fp0, Fp0int, F0, F0int,S0in,s0,dt0)
-            jacob(k,p) = (Tagb(pos1(k),pos2(k))-Tag(pos1(k),pos2(k)))/dl
+                Lb = La
+                if (pos1(p) /= pos2(p)) then
+                Lb(pos1(p),pos2(p)) = La(pos1(p),pos2(p)) - dl
+                Lb(pos2(p),pos1(p)) = La(pos2(p),pos1(p)) - dl
+                else if (pos1(p) == pos2(p)) then
+                Lb(pos1(p),pos2(p)) = La(pos1(p),pos2(p)) - dl 
+                end if
+
+                call timestep(Tagcc, Dp, Lb, gammatot, gammatoti, Fp0, Fp0int, F0, F0int,S0in,s0,dt0)
+            jacob(k,p) = (Tagb(pos1(k),pos2(k))-Tagcc(pos1(k),pos2(k)))/dl/2
             end do
         end do
-        !write(*,*) tag
-        !write(*,*) tagb
+    
         Jinv = jacob
         offdl = -sigma
 
@@ -254,37 +262,27 @@ case (1)
         minl = minloc(sigma, DIM = 1)
         maxl = maxloc(sigma, DIM = 1)
        
-       nor2 = norm2(La)
+       
 
    nit = nit+1
-   !write(*,*) nit
+ 
     end do boundarycond
    
 case (2)
     nit = 0
    
-    !La(1,1) = 1/sqrt(1.0+propconst(1)**2)
-    !La(2,2) = propconst(1)**2/sqrt(1.0+propconst(1)**2)
-    !La(1,2) = 0
-    !La(2,1) = 0
-    !La(1,3) = 0
-    !La(3,1) = 0
-    !La(2,3) = 0
-    !La(3,2) = 0
-    !La(3,3) = -1.0/3.0*(La(1,1)+La(2,2))
+   
    boundary2: do while (nit < 20)
     call timestep(Tag, Dp, La, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,S0in,s0,dt0)
     do h = 1,5
         sigma2(h) = Tag(pos1(h),pos2(h))-propconst(h)*Tag(1,1)
     end do
-      ! write(*,*) sigma2
-    if (gammatoti > pw) then
-      !  write(*,*) sigma2 , Tag(1,1), Tag(2,2), gammatoti
-    end if
+    write(*,*) sigma2 , Tag(1,1), Tag(2,2), epsp+norm2(Dp)*sqrt(2./3.)*dt0
+   
          minl = minloc(sigma2, DIM = 1)
          maxl = maxloc(sigma2, DIM = 1)
          if (abs(sigma2(minl)) < 0.00000000001 .and. abs(sigma2(maxl)) < 0.00000000001) then
-           !write(*,*) sigma2 , Tag(1,1), Tag(2,2), gammatoti
+           write(*,*) sigma2 , Tag(1,1), Tag(2,2), gammatoti
          !   write(*,*) tag
             exit boundary2
          end if 
@@ -325,7 +323,7 @@ end select
   !  exit iter
   ! end if
    
-   
+epspi = epsp+norm2(Dp)*sqrt(2./3.)*dt0
    
 
    
@@ -341,17 +339,17 @@ end select
        
         
        
-        if (gammatoti > pw .and. abs((gammatoti - pw)/pw) > pwpercision) then
+        if (epspi > pw .and. abs((epspi - pw)/pw) > pwpercision) then
             if (pw == 0) then
                 dt0 = dt0/2
             else
-            dt0 = (pw-gammatot)*dt0/(gammatoti-gammatot)*0.5
+            dt0 = (pw-epsp)*dt0/(epspi-epsp)
             end if
             !write(*,*) dt0, sigma, gammatoti-pw, nor1, nor2
             switch = switch +1
             secit = secit +1
-            if (secit > 30) then 
-                write(*,*) gammatoti
+            if (secit > 60) then 
+                write(*,*) epspi
                 write(*,*) 'early exit'
                 exit iter
             end if 
@@ -363,7 +361,7 @@ end select
         Tagc = Tagcint
         s0 = s0in
         gammatot = gammatoti 
-        epsp = epsp+norm2(Dp)*sqrt(2./3.)*dt
+        epsp = epspi
         if (bryter == 5) then
             if (gammatot > gammaskrank) then
                 write(8,*) bryter, gammatoti
@@ -408,7 +406,7 @@ end select
             end if
         end if 
 
-        if (abs((gammatot -pw)/pw) <= pwpercision) then
+        if (abs((epsp - pw)/pw) <= pwpercision) then
             Fp0i = Fp0
             F0i  = F0
             S0i = S0   
@@ -425,11 +423,11 @@ end select
     else if (bryter == 2 .or. bryter == 6) then
         
         if (pw /= 0) then
-        if (gammatoti > pw .and. abs((gammatoti - pw)/pw) > pwpercision) then
+        if (epspi > pw .and. abs((epspi - pw)/pw) > pwpercision) then
             if (pw == 0) then
                 dt0 = dt0/2
             else
-            dt0 = (pw-gammatot)*dt0/(gammatoti-gammatot)*0.5
+            dt0 = (pw-epsp)*dt0/(epspi-epsp)*0.5
             end if
             write(*,*) dt0, sigma, gammatoti-pw
             switch = switch +1
@@ -442,7 +440,7 @@ end select
         end if
 
         if (pw == 0) then
-            if (gammatoti > pw .and. abs(gammatoti) > pwpercision) then
+            if (epspi > pw .and. abs(epsp) > pwpercision) then
             dt0 = dt0/2
             !dt0 = (pw-gammatot)*dt0/(gammatoti-gammatot) 
             switch = switch +1
@@ -459,7 +457,7 @@ end select
         Tagc = Tagcint
         s0 = s0in
         gammatot = gammatoti 
-
+        epsp = epspi
         if (bryter == 6) then
             if (gammatot > gammaskrank) then
                 write(8,*) bryter, gammatoti
@@ -502,9 +500,9 @@ end select
             end if
         end if 
         
-        if (pw /= 0 .and. abs((gammatot -pw)/pw)<= pwpercision) then
+        if (pw /= 0 .and. abs((epsp -pw)/pw)<= pwpercision) then
             exit iter
-        else if (pw == 0 .and. gammatot <= pwpercision .and. gammatot > 0) then
+        else if (pw == 0 .and. epsp <= pwpercision .and. epsp > 0) then
            ! write(*,*) 'check'
             exit iter
 
@@ -570,7 +568,8 @@ subroutine timestep(Tag, Dp, La, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,S0
     real(8) , dimension(3,3,nlines) ::   Tagcint, Lc
     real(8) , dimension(3,3,nlines), intent(in) :: F0, Fp0
     real(8) , dimension(3,3,nlines), intent(out) :: F0int, Fp0int
-    real(8),  dimension(nlines,12) :: s0,S0in
+    real(8),  dimension(nlines,12), intent(in) :: s0
+    real(8),  dimension(nlines,12), intent(out) :: S0in
     real(8) , dimension(12) :: tautr,s1,tau, consis, s0int
     real(8) , dimension(3) :: m,n
     logical, dimension(12) :: PA, Active
@@ -981,7 +980,7 @@ subroutine elasticconstant(Chook, mu)
               ! end do
                gammatoti = 0   
                n = 1
-               dt0 = dt *n 
+               dt0 = 0.00001
                call timestep(Tag, Dp, La, gammatot, gammatoti , Fp0, Fp0i, F0, F0i,S0i,s0,dt0)
                F = id + La*dt0
                E = 1./2.*(matmul(transpose(F),F)-id)

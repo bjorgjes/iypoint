@@ -51,15 +51,17 @@ do i = 1,50
 !write(*,*) tag(1,1), epsp
 end do
 
-pw1 = 0.006
+pw1 = 0.1
 bryter = 5
 k = 1
-!call constexpr(k,2,bryter,pw1)
+!call constexpr(k,2,bryter,pw1, tag, epsp)
 call newton(1,2,bryter,F0,Fp0,S0,pw1) 
 !write(*,*) bryter
 
 bryter = 6
-pw1 = 0.002
+pw1 = 0.008
+k = 0
+!call constexpr(k,2,bryter,pw1, tag, epsp)
 !call newton(0,3,bryter,F0,Fp0,S0,pw1)   
 !write(*,*) 'check1'
 !F0 = F0i
@@ -492,7 +494,7 @@ end if
     return
     end subroutine yoshi
 
-    subroutine constexpr(k,part,bryter,strain)
+    subroutine constexpr(k,part,bryter,strain,tag,epsp)
         use crystalplasticity
         implicit none
 
@@ -511,7 +513,7 @@ end if
         integer , dimension(4) :: IPIV
         real(8) , dimension(5,5)  :: Jacob2, Jinv2
         real(8) :: pwpercision
-
+        gammaskrank = 0
         pwpercision = 0.0000000001
         secit = 0
         pos1 = (/1, 1, 2, 3, 2/)
@@ -671,9 +673,9 @@ if (bryter == 1 .or. bryter == 5 .or. bryter == 4) then
     end if 
     
     tag = tagi
-    write(*,*) tag , epspi, nit
+    !write(*,*) tag , epspi, nit
     epsp = epspi
-    write(*,*) 'check2'
+    write(*,*) epsp
     if (bryter == 5) then
         if (epsp > gammaskrank) then
             write(8,*) bryter, epspi
@@ -725,6 +727,7 @@ else if (bryter == 2 .or. bryter == 6) then
 
     tag = tagi
     epsp = epspi 
+    write(*,*) epsp
 
     if (bryter == 6) then
         if (epsp > gammaskrank) then
@@ -734,6 +737,7 @@ else if (bryter == 2 .or. bryter == 6) then
             call Yoshidamodel(tag,La,Dp)
 
         gammaskrank = gammaskrank + 0.00000005
+        write(13,*) Tag(1,1), Tag(2,2) , Dp(1,1), Dp(2,2) 
         !write(8,*) Tag(1,1),Tag(2,2), Dp(1,1)/sqrt(Dp(1,1)**2+Dp(2,2)**2),Dp(2,2)/sqrt(Dp(1,1)**2+Dp(2,2)**2.)
         
         end if
