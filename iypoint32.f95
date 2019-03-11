@@ -2,9 +2,10 @@ program ypoint
 use crystalplasticity
     implicit none
 
-integer :: part,bryter, k, i
+integer :: part,bryter, k, i,bcond
 real(8) :: t1,t2,omp_get_wtime,pw1,pw2,epsp, dt0
 real(8) , dimension(3,3) :: tag, D
+real(8) , dimension(5) :: propconst
 !real(8) , dimension(:,:), Allocatable ::eul
 real(8) , dimension(:,:,:), Allocatable  :: F0,Fp0
 real(8),  dimension(:,:), Allocatable :: S0
@@ -12,9 +13,10 @@ t1 = omp_get_wtime()
 open(unit=11,file="result.txt",status='replace')
 open(unit=3,file="Stress.txt",status='replace')
 open(unit=8,file="eulerangles.txt",status='replace')
-open(unit=13,file="Dp.txt",status='replace')
-open(unit=14,file="Dp2.txt",status='replace')
-open(unit=16,file="Grad.txt",status='replace')
+open(unit=13,file="Dp_cp.txt",status='replace')
+open(unit=18,file="Dp_con.txt",status='replace')
+open(unit=14,file="Dp2_cp.txt",status='replace')
+open(unit=16,file="Grad_cp.txt",status='replace')
 open(unit=4,file="hardeningrate.txt",status='replace')
 call init()
 write(*,*) nlines
@@ -35,31 +37,30 @@ Allocate(s0(nlines,12))
 !!!
 !!!   bryter = 4 - Used for strain path change, takes a prestrained crystal(F0,Fp0,S0) calculated using eg bryter = 1, and perform strain in a prescribed direction for a given plastic work. 
 !!!     
-D = 0
-D(1,1) = -1
-D(2,2) = 1./2.
-D(3,3) = 1./2.
-Tag = 0
 
-dt0 = 0.00001
-!call elasticsolution(D,tag)
-epsp = 0
-do i = 1,50
-!    write(*,*) i
 
-!call yoshi(tag,D,epsp,dt0)
-!write(*,*) tag(1,1), epsp
-end do
 
-pw1 = 0.1
-bryter = 5
+    
 k = 1
-!call constexpr(k,2,bryter,pw1, tag, epsp)
-call newton(1,2,bryter,F0,Fp0,S0,pw1) 
+    
+    propconst = (/0.0, 0.0, 0.0, 0.0, 0.1*k/)
+    bryter = 5
+    tag = 0
+    epsp = 0
+
+
+    propconst = (/0.0, 0.0, 0.0, 0.0, 0.1*k/)
+Tag = 0
+epsp = 0
+pw1 = 0.001
+bryter = 5
+bcond = 2
+call constexpr(k,2,bryter,bcond,pw1, tag, epsp,propconst)
+!call newton(1,2,bryter,bcond,F0,Fp0,S0,pw1,propconst) 
 !write(*,*) bryter
 
 bryter = 6
-pw1 = 0.008
+pw1 = 0.001
 k = 0
 !call constexpr(k,2,bryter,pw1, tag, epsp)
 !call newton(0,3,bryter,F0,Fp0,S0,pw1)   
@@ -68,16 +69,31 @@ k = 0
 !S0 = S0i
 !Fp0 = Fp0i
 !pw2 = 0.003
-!part = 200
-!call OMP_SET_NUM_THREADS(7)
-!!$OMP PARALLEL PRIVATE(k,F0,S0,Fp0,bryter)
-!!$OMP DO
-!do k = 0,2*part
-!    bryter = 7
-!    call newton(k,part,bryter,F0,Fp0,S0,pw2)
-!end do
-!!$OMP END DO NOWAIT
-!!$OMP END PARALLEL
+!F0 = 0
+!Fp0 = 0
+!s0 = 16
+bcond = 2
+part = 1
+
+call OMP_SET_NUM_THREADS(2)
+!$OMP PARALLEL PRIVATE(F0,S0,Fp0,bryter,propconst,bcond,pw1,k,slip,Cel,eul,nlines,id,R, hardening, pi, dt, tag,epsp)
+!$OMP DO
+do k = 0,2
+    bryter = 5
+    pw1 = 0.001
+    bcond = 2
+    write(*,*) 'start'
+    propconst = (/0.0, 0.0, 0.0, 0.0, 0.1*k/)
+    call newton(k,2,bryter,bcond,F0,Fp0,S0,pw1,propconst) 
+    bryter = 5
+    tag = 0
+    epsp = 0
+    call constexpr(k,2,bryter,bcond,pw1, tag, epsp,propconst)
+    write(*,*) tag(1,1), tag(2,2) , k
+    write(*,*) 'cycle'
+end do
+!$OMP END DO NOWAIT
+!$OMP END PARALLEL
 
 
 
@@ -319,6 +335,8 @@ end subroutine Yoshidamodel
         real(8) :: h , G,NCN, theta, c1= 0.3, theta0, alpha, sigma, sigma0, dt0, epsp, lamb, sigmacheck, dt1, consistency
         real(8) , dimension(6,6) :: Chook
         integer :: i,j,k,l,p,q
+        logical :: consistent
+
         
         
         theta0 = pi/18.
@@ -332,7 +350,7 @@ end subroutine Yoshidamodel
   
         call eqvstress(tag,sigma)
         
-
+        
     
    
    
@@ -351,7 +369,7 @@ end subroutine Yoshidamodel
     end do
 
     !write(*,*) epsp, abs(sigma0 - sigma)
-    if (epsp == 0 .and. abs(sigma0 - sigma) > 0.00000000001) then
+    if (epsp == 0 .and. abs(sigma - sigma0) > 0.0000000000001) then
     !call eqvstress(tag,sigma)
     !write(*,*) sigma
     !write(*,*) 'Elastic'
@@ -377,7 +395,7 @@ end subroutine Yoshidamodel
             tagcheck = tag+dtag*dt1
             call eqvstress(tagcheck,sigmacheck)
             consistency = abs(sigmacheck - sigma0)
-            write(*,*) dt1, consistency
+       !     write(*,*) dt1, consistency
             if (sigmacheck > sigma0 ) then 
             dt1 = (sigma0-sigma)/(sigmacheck-sigma)*dt1
             !write(*,*) dt1
@@ -435,6 +453,7 @@ else
         !Calculate theta
         call contract2(Ddev,N,theta)
         theta = acos(theta/norm2(Ddev)/Norm2(N))
+    
       
         if (theta >= 0 .and. theta <= theta0 ) then
             alpha = 1-c1*sqrt(sigma0/G)
@@ -473,6 +492,10 @@ else
         end do  
     
      Cep = Cel4 - dyadic/(NCN+sqrt(2./3.)*norm2(N)*h) - CT  
+     if (theta >= pi/2) then
+        !write(*,*) Cel4-Cep
+     end if 
+
      do i = 1,3
         do j = 1,3
             do k =1,3
@@ -494,7 +517,7 @@ end if
     return
     end subroutine yoshi
 
-    subroutine constexpr(k,part,bryter,strain,tag,epsp)
+    subroutine constexpr(l,part,bryter,bcond,strain,tag,epsp,propconst)
         use crystalplasticity
         implicit none
 
@@ -504,12 +527,12 @@ end if
         real(8), dimension(5) :: propconst, offdl2, sigma2, IPIV2
         integer, dimension(5) :: pos1, pos2
         real(8) :: dt0,gammaskrank, dl
-        real(8) , dimension(3,3)  :: Lb, Tagb, La, Dp
+        real(8) , dimension(3,3)  :: Lb, Tagb, La, Dp,tagc
         
-        integer ::  switch , p,k,h, bryter,secit,part
+        integer ::  switch , p,k,h,l, bryter,secit,part
         real(8) , dimension(4,4)  :: Jacob, Jinv
         
-        integer :: LDA = 4,NRHS = 1, Info,  minl, maxl,nit,bcond=1
+        integer :: LDA = 4,NRHS = 1, Info,  minl, maxl,nit,bcond
         integer , dimension(4) :: IPIV
         real(8) , dimension(5,5)  :: Jacob2, Jinv2
         real(8) :: pwpercision
@@ -518,11 +541,14 @@ end if
         secit = 0
         pos1 = (/1, 1, 2, 3, 2/)
         pos2 =(/2, 3, 3, 3, 2/)
-        dl = 0.00001
-          
+        dl = 0.001
+    
+    ! Sets the initial velocity gradient for the given boundary condition
+    select case (bcond)
+    case(1)
                     La = 0 
-            La(1,1) = cos(pi*k/part)
-            La(2,2) = sin(pi*k/part)
+            La(1,1) = cos(pi*l/part)
+            La(2,2) = sin(pi*l/part)
             La(3,3) =-0.3*(La(1,1)+La(2,2))
             La(1,2) = 0
             La(2,1) = 0
@@ -530,9 +556,20 @@ end if
             La(3,1) = 0
             La(2,3) = 0
             La(3,2) = 0
-
+    case(2) 
+        La(1,1) = 1/sqrt(1.0+propconst(5)**2)
+        La(2,2) = propconst(5)**2/sqrt(1.0+propconst(5)**2)
+        La(1,2) = 0
+        La(2,1) = 0
+        La(1,3) = 0
+        La(3,1) = 0
+        La(2,3) = 0
+        La(3,2) = 0
+        La(3,3) = -1.0/3.0*(La(1,1)+La(2,2))
+    end select    
+    
             dt0 = dt
-iter: do while (switch < 10000)
+iter: do while (switch < 100000)
 
 
 
@@ -599,23 +636,26 @@ case (1)
     end do boundarycond
    
 case (2)
+!dl = 0.001  
+
     nit = 0
-   boundary2: do while (nit < 20)
+   boundary2: do while (nit < 100)
+   
    tagi = tag
    epspi = epsp
+   
+   
    call yoshi(Tagi,La,epspi,dt0)
+  ! write(*,*) tagi
     do h = 1,5
         sigma2(h) = Tagi(pos1(h),pos2(h))-propconst(h)*Tagi(1,1)
     end do
-      ! write(*,*) sigma2
-    if (epspi > strain) then
-      !  write(*,*) sigma2 , Tag(1,1), Tag(2,2), epspi
-    end if
+       !write(*,*) sigma2
          minl = minloc(sigma2, DIM = 1)
          maxl = maxloc(sigma2, DIM = 1)
          if (abs(sigma2(minl)) < 0.00000000001 .and. abs(sigma2(maxl)) < 0.00000000001) then
-           !write(*,*) sigma2 , Tag(1,1), Tag(2,2), epspi
-         !   write(*,*) tag
+          ! write(*,*) sigma2 , epspi
+          ! write(*,*) tagi
             exit boundary2
          end if 
      do k = 1,5
@@ -630,8 +670,20 @@ case (2)
                 Lb(pos1(p),pos2(p)) = La(pos1(p),pos2(p)) + dl 
                 end if
 
-                call yoshi(Tagb,La,epspi,dt0)
-            jacob2(k,p) = ((Tagb(pos1(k),pos2(k))-propconst(k)*Tagb(1,1))-(Tag(pos1(k),pos2(k))-propconst(k)*tag(1,1)))/dl
+                call yoshi(Tagb,Lb,epspi,dt0)
+
+                tagc = tag
+                epspi = epsp
+                Lb = La
+                if (pos1(p) /= pos2(p)) then
+                Lb(pos1(p),pos2(p)) = La(pos1(p),pos2(p)) - dl
+                Lb(pos2(p),pos1(p)) = La(pos2(p),pos1(p)) - dl
+                else if (pos1(p) == pos2(p)) then
+                Lb(pos1(p),pos2(p)) = La(pos1(p),pos2(p)) - dl 
+                end if
+                call yoshi(Tagc,Lb,epspi,dt0)
+
+            jacob2(k,p) = ((Tagb(pos1(k),pos2(k))-propconst(k)*Tagb(1,1))-(Tagc(pos1(k),pos2(k))-propconst(k)*tagc(1,1)))/dl/2
             end do
         end do
         Jinv2 = jacob2
@@ -648,9 +700,24 @@ case (2)
         La(2,2) = La(2,2) + offdl2(5)
       
         nit = nit+1
+
+        !write(*,*) La
+        !write(*,*) tagi
+        !write(*,*) tagb
+        !write(*,*) 
+        !write(*,*) Jacob2(1,1:5)
+        !write(*,*) Jacob2(2,1:5)
+        !write(*,*) Jacob2(3,1:5)
+        !write(*,*) Jacob2(4,1:5)
+        !write(*,*) Jacob2(5,1:5)
+        !write(*,*) 
+
+
+        
+        !call sleep(3)
    end do boundary2
 end select
-
+!call sleep(2)
 if (bryter == 1 .or. bryter == 5 .or. bryter == 4) then
        
         
@@ -662,7 +729,7 @@ if (bryter == 1 .or. bryter == 5 .or. bryter == 4) then
         dt0 = (strain-epsp)*dt0/(epspi-epsp)*0.7
         end if
         secit = secit +1
-        write(*,*) dt0, epspi, epsp
+        !write(*,*) dt0, epspi, epsp
         switch = switch + 1
         if (secit > 30) then 
             write(*,*) epspi
@@ -673,9 +740,9 @@ if (bryter == 1 .or. bryter == 5 .or. bryter == 4) then
     end if 
     
     tag = tagi
-    !write(*,*) tag , epspi, nit
+    !write(*,*) epspi, nit, dt0, l
     epsp = epspi
-    write(*,*) epsp
+    !write(*,*) epsp
     if (bryter == 5) then
         if (epsp > gammaskrank) then
             write(8,*) bryter, epspi
@@ -683,7 +750,7 @@ if (bryter == 1 .or. bryter == 5 .or. bryter == 4) then
         write(11,*) Tag(1,3), Tag(1,2), Tag(2,3), Tag(3,3) ,epsp
         call Yoshidamodel(tag,La,Dp)
         
-        write(13,*) Tag(1,1), Tag(2,2) , Dp(1,1), Dp(2,2) 
+        write(18,*) Tag(1,1), Tag(2,2) , Dp(1,1), Dp(2,2) 
         gammaskrank = gammaskrank + 0.0000001
         
         end if

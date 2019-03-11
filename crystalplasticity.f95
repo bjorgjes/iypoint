@@ -2,17 +2,17 @@ module crystalplasticity
 use global
 
 contains
-subroutine newton(k,part,bryter,F0i,Fp0i,S0i,pw)
+subroutine newton(k,part,bryter,bcond,F0i,Fp0i,S0i,pw,propconst)
     
     implicit none
 real(8) , dimension(3,3)  :: La, Tag, Dp
 real(8) :: pw
-integer ::  k, part,teller,bry
+integer ::  k, part,teller,bry,bcond
 integer  :: bryter
 !real(8), dimension(nlines,3), intent(in) :: eul
 real(8) , dimension(3,3,nlines)  :: Fp0i,F0i
 real(8),  dimension(nlines,12) :: S0i
-
+real(8), dimension(5) :: propconst
 bry = 0
 if (bryter == 4) then 
     bry = 1
@@ -46,11 +46,11 @@ La(3,1) = 0
 La(2,3) = 0
 La(3,2) = 0
 
-    call taylor(La,Tag,bryter,F0i,Fp0i,S0i,pw,Dp)
-
+    call taylor(La,Tag,bryter,bcond,F0i,Fp0i,S0i,pw,Dp,propconst)
+    write(*,*) Tag(1,1), tag(2,2), k
     if (bry == 1) then ! If one want relaxed state. 
         !Performes relaxation
-        call taylor(La,Tag,3,F0i,Fp0i,S0i,pw,Dp)
+        call taylor(La,Tag,3,bcond,F0i,Fp0i,S0i,pw,Dp,propconst)
     end if
 if (bryter == 2) then
 write(3,*) Tag(1,1), Tag(2,2), k
@@ -76,7 +76,7 @@ if (bry == 5) then
 end subroutine newton
 
 
-subroutine taylor(La,Tag,bryter,F0i,Fp0i,S0i,pw,Dp)
+subroutine taylor(La,Tag,bryter,bcond,F0i,Fp0i,S0i,pw,Dp,propconst)
     
         implicit none
     
@@ -88,26 +88,29 @@ subroutine taylor(La,Tag,bryter,F0i,Fp0i,S0i,pw,Dp)
                         
     real(8) , dimension(3,3) :: La
     real(8) , dimension(3,3), intent(out)  :: Tag
-    real(8) , dimension(3,3,nlines) ::  F0, Fp0,Fp0i,Fp0int,F0i,F0int, Tagc, Tagcint
-    real(8),  dimension(nlines,12) :: s0,S0i,S0in
+    real(8) , dimension(3,3,nlines) ::  F0, F02, Fp0, Fp02, Fp0i,Fp0int,F0i,F0int, Tagc, Tagcint
+    real(8),  dimension(nlines,12) :: s0,S0i,S0in, S02
     integer :: i, switch , o,p,k,h, bryter,secit
     real(8) , dimension(4,4)  :: Jacob, Jinv
     real(8) , dimension(4)  :: sigma, offdl
-    integer :: LDA = 4,NRHS = 1, Info,  minl, maxl,nit,bcond=2
+    integer :: LDA = 4,NRHS = 1, Info,  minl, maxl,nit,bcond,centraldiff, proximity
     integer , dimension(4) :: IPIV
     real(8), dimension(5) :: propconst, offdl2, sigma2, IPIV2
     real(8) , dimension(5,5)  :: Jacob2, Jinv2
     integer, dimension(5) :: pos1, pos2
-    real(8) :: pwpercision, epspi
+    real(8) :: pwpercision, epspi, convcriterion, test
     
     ! The percision of the plastic work given in relative fraction
-    pwpercision = 0.00000001
+    pwpercision = 0.0000000000001
+    convcriterion = 0.000000000001
+    centraldiff = 1
+    proximity = 0
     !Timeincrement
     !dt0 = 0.0000001
 
     pos1 = (/1, 1, 2, 3, 2/)
     pos2 =(/2, 3, 3, 3, 2/)
-    dl = 0.00001
+    dl = 0.000001
     La0 = La
     !Define velocity gradient
     !strainrate
@@ -117,8 +120,10 @@ subroutine taylor(La,Tag,bryter,F0i,Fp0i,S0i,pw,Dp)
         S0 = s0i 
         Fp0 = Fp0i  
         F0 = F0i  
-
-        propconst = (/0.0, 0.0, 0.0, 0.0, 0.0/)
+        S02 = s0
+        Fp02 = Fp0
+        F02 = F0
+        !propconst = (/0.0, 0.0, 0.0, 0.0, 0.0/)
     
     
  
@@ -213,7 +218,7 @@ case (1)
        do h = 1,4
         sigma(h) = Tag(pos1(h),pos2(h))
        end do
-       write(*,*) sigma , Tag(1,1), Tag(2,2), epsp+norm2(Dp)*sqrt(2./3.)*dt0, dt0, epsp
+       !write(*,*) sigma , Tag(1,1), Tag(2,2), epsp+norm2(Dp)*sqrt(2./3.)*dt0, dt0, epsp
          minl = minloc(sigma, DIM = 1)
          maxl = maxloc(sigma, DIM = 1)
          if (abs(sigma(minl)) < 0.00000000001 .and. abs(sigma(maxl)) < 0.00000000001) then
@@ -271,33 +276,80 @@ case (1)
 case (2)
     nit = 0
    
-   
-   boundary2: do while (nit < 20)
-    call timestep(Tag, Dp, La, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,S0in,s0,dt0)
+    Lc = La
+   boundary2: do while (nit < 50)
+   epspi = epsp
+  !Lc = Lc/norm2(Lc)
+    if (dt0 < 1e-9) then
+        test = 0.0
+        write(*,*) tag
+        call timestep(Tag, Dp, Lc, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,S0in,s0,test)
+        write(*,*) sum(Fp0int -Fp0), sum(F0int -F0), sum(s0in-S0)
+        call timestep(Tag, Dp, Lc, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,S0in,s0,test)
+        write(*,*) sum(Fp0int -Fp0), sum(F0int -F0), sum(s0in-S0)
+        write(*,*) tag
+    end if
+    call timestep(Tag, Dp, Lc, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,S0in,s0,dt0)
+    if (dt0 < 1e-9) then
+       ! write(*,*) tag
+    end if
     do h = 1,5
         sigma2(h) = Tag(pos1(h),pos2(h))-propconst(h)*Tag(1,1)
     end do
-    write(*,*) sigma2 , Tag(1,1), Tag(2,2), epsp+norm2(Dp)*sqrt(2./3.)*dt0
+    !write(*,*)  sigma2, epsp+norm2(Dp)*sqrt(2./3.)*dt0, epsp, dt0, norm2(Lc), dl
    
          minl = minloc(sigma2, DIM = 1)
          maxl = maxloc(sigma2, DIM = 1)
-         if (abs(sigma2(minl)) < 0.00000000001 .and. abs(sigma2(maxl)) < 0.00000000001) then
-           write(*,*) sigma2 , Tag(1,1), Tag(2,2), gammatoti
+         if (abs(sigma2(minl)) < convcriterion .and. abs(sigma2(maxl)) < convcriterion) then
+          !  write(*,*)
+           ! write(*,*) sigma2 , Tag(1,1), Tag(2,2), epsp+norm2(Dp)*sqrt(2./3.)*dt0
+           ! write(*,*)
+           ! write(*,*) abs(sigma2)
+           ! write(*,*)
          !   write(*,*) tag
             exit boundary2
          end if 
      do k = 1,5
             do p = 1,5
-                Lb = La
+            select case (centraldiff)
+            case(2)
+                Lb = Lc
                 if (pos1(p) /= pos2(p)) then
-                Lb(pos1(p),pos2(p)) = La(pos1(p),pos2(p)) + dl
-                Lb(pos2(p),pos1(p)) = La(pos2(p),pos1(p)) + dl
+                Lb(pos1(p),pos2(p)) = Lc(pos1(p),pos2(p)) + dl
+                Lb(pos2(p),pos1(p)) = Lc(pos2(p),pos1(p)) + dl
                 else if (pos1(p) == pos2(p)) then
-                Lb(pos1(p),pos2(p)) = La(pos1(p),pos2(p)) + dl 
+                Lb(pos1(p),pos2(p)) = Lc(pos1(p),pos2(p)) + dl 
+                end if
+
+                call timestep(Tagb, Dp, Lb, gammatot, gammatoti, Fp0, Fp0int, F0, F0int,S0in,s0,dt0)
+                Lb = Lc
+                if (pos1(p) /= pos2(p)) then
+                Lb(pos1(p),pos2(p)) = Lc(pos1(p),pos2(p)) - dl
+                Lb(pos2(p),pos1(p)) = Lc(pos2(p),pos1(p)) - dl
+                else if (pos1(p) == pos2(p)) then
+                Lb(pos1(p),pos2(p)) = Lc(pos1(p),pos2(p)) - dl 
+                end if
+
+                call timestep(Tagcc, Dp, Lb, gammatot, gammatoti, Fp0, Fp0int, F0, F0int,S0in,s0,dt0)
+            jacob2(k,p) = (Tagb(pos1(k),pos2(k))-Tagcc(pos1(k),pos2(k)))/dl/2
+               ! if (abs(Tagb(pos1(k),pos2(k))-Tagcc(pos1(k),pos2(k)))< 1e-12) then 
+               !     write(*,*) 'low jacobi'
+               !     write(*,*)  Tagb(pos1(k),pos2(k))-Tagcc(pos1(k),pos2(k))
+               ! end if
+
+            case(1)
+                
+               Lb = Lc
+                if (pos1(p) /= pos2(p)) then
+                Lb(pos1(p),pos2(p)) = Lc(pos1(p),pos2(p)) + dl
+                Lb(pos2(p),pos1(p)) = Lc(pos2(p),pos1(p)) + dl
+                else if (pos1(p) == pos2(p)) then
+                Lb(pos1(p),pos2(p)) = Lc(pos1(p),pos2(p)) + dl 
                 end if
 
                 call timestep(Tagb, Dp, Lb, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,S0in,s0,dt0)
             jacob2(k,p) = ((Tagb(pos1(k),pos2(k))-propconst(k)*Tagb(1,1))-(Tag(pos1(k),pos2(k))-propconst(k)*tag(1,1)))/dl
+            end select
             end do
         end do
         Jinv2 = jacob2
@@ -306,17 +358,27 @@ case (2)
         call dgesv(5,1,Jinv2,5,IPIV2,offdl2, 5 , Info)
        ! write(*,*) info
        ! write(*,*) offdl2
-        La(1,2) = La(1,2) + offdl2(1)
-        La(2,1) = La(2,1) + offdl2(1)
-        La(1,3) = La(1,3) + offdl2(2)
-        La(3,1) = La(3,1) + offdl2(2)
-        La(2,3) = La(2,3) + offdl2(3)
-        La(3,2) = La(3,2) + offdl2(3)
-        La(3,3) = La(3,3) + offdl2(4)
-        La(2,2) = La(2,2) + offdl2(5)
+        Lc(1,2) = Lc(1,2) + offdl2(1)
+        Lc(2,1) = Lc(2,1) + offdl2(1)
+        Lc(1,3) = Lc(1,3) + offdl2(2)
+        Lc(3,1) = Lc(3,1) + offdl2(2)
+        Lc(2,3) = Lc(2,3) + offdl2(3)
+        Lc(3,2) = Lc(3,2) + offdl2(3)
+        Lc(3,3) = Lc(3,3) + offdl2(4)
+        Lc(2,2) = Lc(2,2) + offdl2(5)
       
         nit = nit+1
+        !if (nit == 49 .or. norm2(Lc) > 2) then
+         !   dt0 = dt0*0.5
+         !   nit = 0
+         !   Lc = la
+         !   dl = 0.00001
+        !end if
    end do boundary2
+
+case (3)
+    call timestep(Tag, Dp, La, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,S0in,s0,dt0)
+    write(*,*) Tag(1,1), Tag(2,2), epsp+norm2(Dp)*sqrt(2./3.)*dt0
 end select
   !if (gammatoti > pw) then 
   !  write(*,*) 'reached plastic work'
@@ -339,29 +401,58 @@ epspi = epsp+norm2(Dp)*sqrt(2./3.)*dt0
        
         
        
-        if (epspi > pw .and. abs((epspi - pw)/pw) > pwpercision) then
+        if ((epspi > pw .or. proximity == 1) .and. abs((epspi - pw)) > pwpercision) then
+            centraldiff = 2
+            !bcond = 3
+            proximity = 1
             if (pw == 0) then
                 dt0 = dt0/2
             else
+               ! if ((pw-epsp)/(epspi-epsp)< 1e-2) then
             dt0 = (pw-epsp)*dt0/(epspi-epsp)
+            dl = dl*(epspi-epsp)/(pw-epsp)
+            !convcriterion = convcriterion/10
+              !  else 
+               !     dt0 = (pw-epsp)*dt0/(epspi-epsp)*0.1
+               !     dl = dl*(epspi-epsp)/(pw-epsp)
+               ! end if
+            write(*,*) dt0, epsp
+               ! dt0 = dt0/2
+               
             end if
             !write(*,*) dt0, sigma, gammatoti-pw, nor1, nor2
             switch = switch +1
             secit = secit +1
-            if (secit > 60) then 
+            if (secit > 250) then 
                 write(*,*) epspi
                 write(*,*) 'early exit'
                 exit iter
             end if 
             cycle iter
         end if 
+        !dt0 = dt
+        !dl = 0.00001
+        if (bcond == 3) then
+            bcond = 2
+            cycle iter
+            
+        end if
         
+        !dl = 0.00001
+        !write(*,*) Sum(F0-F02), sum(s0-s02), sum(Fp0-Fp02)
         F0 = F0int
         Fp0 = Fp0int
-        Tagc = Tagcint
+        
         s0 = s0in
         gammatot = gammatoti 
+        La = Lc
         epsp = epspi
+        bcond = 2
+        
+
+        S02 = s0
+        Fp02 = Fp0
+        F02 = F0
         if (bryter == 5) then
             if (gammatot > gammaskrank) then
                 write(8,*) bryter, gammatoti
@@ -406,7 +497,7 @@ epspi = epsp+norm2(Dp)*sqrt(2./3.)*dt0
             end if
         end if 
 
-        if (abs((epsp - pw)/pw) <= pwpercision) then
+        if (abs((epsp - pw)) <= pwpercision) then
             Fp0i = Fp0
             F0i  = F0
             S0i = S0   
@@ -454,7 +545,6 @@ epspi = epsp+norm2(Dp)*sqrt(2./3.)*dt0
 
         F0 = F0int
         Fp0 = Fp0int
-        Tagc = Tagcint
         s0 = s0in
         gammatot = gammatoti 
         epsp = epspi
@@ -560,7 +650,7 @@ subroutine timestep(Tag, Dp, La, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,S0
     
     !Declear all variables
  
-    real(8) :: phi1, Phi, phi2, det,dt0, cons, gammatot,gammatoti,h
+    real(8) :: phi1, Phi, phi2, det, cons,h, dt0
     real(8) , dimension(3,3)  :: F1, Fp1, Fp1inv, Fe1, Fetr,Fp0inv, Ctr,T1,Ttr,Etr , & 
                          Schmid,TS,Tint, CS, Tst, Fpint ,Rn,  Rtest,Dpc,Dp
     real(8) , dimension(3,3), intent(in)  :: La
@@ -576,9 +666,15 @@ subroutine timestep(Tag, Dp, La, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,S0
     logical :: consise
     integer :: i,countera,ij, numact,j,q
     double precision, dimension(12):: x
+    real(8), intent(in) :: gammatot
+    real(8), intent(out) :: gammatoti
     
     Tag = 0
     Dp = 0
+    Tagcint = 0
+    Fp0int = 0
+    S0in = 0
+    F0int = 0
     gammatoti = gammatot
     
     grains: do j = 1,nlines   !Iterate over all grains                                                                                                                                                                                   
@@ -600,12 +696,17 @@ subroutine timestep(Tag, Dp, La, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,S0
     call voigt(Etr,Ttr) !Calculate C[Etr]=Ttr
     
     !Step 3 and 4, Calcualte resolved shear stress on each slip system and detrermine potentially active slip systems (P.A)
-    
+  
+
+
+
+
     do i = 1,12
     call slipsys(Schmid,m,n,i)
     TS = matmul(transpose(Schmid),Ttr)
     tautr(i) = TS(1,1)+TS(2,2)+TS(3,3)
-    PA = abs(tautr)-s0(j,1:12) > 0 
+    PA = abs(tautr) > s0(j,1:12) 
+   
     end do
     
     numact = count(PA)
@@ -704,7 +805,7 @@ subroutine timestep(Tag, Dp, La, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,S0
     consise = .true.
     if (count(PA) /= 0) then
     do i = 1,12
-            if (.not.PA(i) .and. abs(tau(i)) > s1(i) -0.0000001 )   Then ! Checks if non potenially active system is activated.
+            if (.not.PA(i) .and. abs(tau(i)) > s1(i) -0.00000000001 )   Then ! Checks if non potenially active system is activated.
                     PA(i) = .true.
                     consise = .false.
                     cycle fiveten
@@ -712,7 +813,7 @@ subroutine timestep(Tag, Dp, La, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,S0
      end do
     
      do i = 1,12
-        if (Active(i) .and. abs(tau(i)) < s1(i) -0.0000001 ) then ! If the active slip systems is not consistent 
+        if (Active(i) .and. abs(tau(i)) < s1(i) -0.00000000001 ) then ! If the active slip systems is not consistent 
             consise = .false.
            PA(i) = .false.
            cycle fiveten
@@ -721,7 +822,7 @@ subroutine timestep(Tag, Dp, La, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,S0
     
     end if 
     
-    if (cons > 0.00001) then
+    if (cons > 0.0000001) then
         write(*,*) 'timestep to large, consistency not achieved 1'
         write(*,*) consis
         write(*,*) x

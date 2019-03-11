@@ -11,7 +11,7 @@ module global
     real(8) , dimension(:,:,:), Allocatable :: R    
     logical                                 :: hardening                              
     
-
+    !!$OMP THREADPRIVATE(slip,Cel,eul,nlines,id,R, hardening, pi, dt)
     contains
    
    !!!!! SUBROUTINE FOR INITIALIZATION OF MATERIAL AND MODEL PARAMETERS
@@ -20,7 +20,7 @@ module global
     integer :: i
     real(8) :: phi1, Phi, phi2
         pi = 4.D0*DATAN(1.D0)
-        dt = 0.00001
+        dt = 0.0001
         hardening = .true.
         
     !Create identity matrix
