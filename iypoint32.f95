@@ -55,7 +55,7 @@ epsp = 0
 pw1 = 0.001
 bryter = 5
 bcond = 2
-!call constexpr(k,2,bryter,bcond,pw1, tag, epsp,propconst)
+call constexpr(k,2,bryter,bcond,pw1, tag, epsp,propconst)
 !call newton(1,2,bryter,bcond,F0,Fp0,S0,pw1,propconst) 
 write(*,*) tag(1,1), tag(2,2)
 
@@ -75,49 +75,49 @@ k = 0
 bcond = 2
 part = 5
 
-call OMP_SET_NUM_THREADS(2)
-!$OMP PARALLEL PRIVATE(F0,S0,Fp0,bryter,propconst,bcond,pw1,k,slip,Cel,eul,nlines,id,R, hardening, pi, dt, tag,epsp)
-!$OMP DO
-do k = 0,part
-    bryter = 5
-    pw1 = 0.001
-    bcond = 2
-    
-    propconst = (/0.0, 0.0, 0.0, 0.0, 0.2*k/)
-    call newton(k,2,bryter,bcond,F0,Fp0,S0,pw1,propconst) 
-    bryter = 5
-    tag = 0
-    epsp = 0
-    call constexpr(k,2,bryter,bcond,pw1, tag, epsp,propconst)
-    write(*,*) tag(1,1), tag(2,2) , k
-   
-end do
-!$OMP END DO NOWAIT
-!$OMP END PARALLEL
+!call OMP_SET_NUM_THREADS(7)
+!!$OMP PARALLEL PRIVATE(F0,S0,Fp0,bryter,propconst,bcond,pw1,k,slip,Cel,eul,nlines,id,R, hardening, pi, dt, tag,epsp)
+!!$OMP DO
+!do k = 0,part
+!    bryter = 5
+!    pw1 = 0.001
+!    bcond = 2
+!    
+!    propconst = (/0.0, 0.0, 0.0, 0.0, 0.2*k/)
+!    call newton(k,2,bryter,bcond,F0,Fp0,S0,pw1,propconst) 
+!    bryter = 5
+!    tag = 0
+!    epsp = 0
+!    call constexpr(k,2,bryter,bcond,pw1, tag, epsp,propconst)
+!    write(*,*) tag(1,1), tag(2,2) , k
+!   
+!end do
+!!$OMP END DO NOWAIT
+!!$OMP END PARALLEL
 
 
 bcond = 2
 part = 5
 
-call OMP_SET_NUM_THREADS(2)
-!$OMP PARALLEL PRIVATE(F0,S0,Fp0,bryter,propconst,bcond,pw1,k,slip,Cel,eul,nlines,id,R, hardening, pi, dt, tag,epsp)
-!$OMP DO
-do k = 0,part
-    bryter = 5
-    pw1 = 0.001
-    bcond = 2
-
-    propconst = (/0.0, 0.0, 0.0, 0.0, -0.2*k/)
-    call newton(k,2,bryter,bcond,F0,Fp0,S0,pw1,propconst) 
-    bryter = 5
-    tag = 0
-    epsp = 0
-    call constexpr(k,2,bryter,bcond,pw1, tag, epsp,propconst)
-    write(*,*) tag(1,1), tag(2,2) , k
-   
-end do
-!$OMP END DO NOWAIT
-!$OMP END PARALLEL
+call OMP_SET_NUM_THREADS(7)
+!!$OMP PARALLEL PRIVATE(F0,S0,Fp0,bryter,propconst,bcond,pw1,k,slip,Cel,eul,nlines,id,R, hardening, pi, dt, tag,epsp)
+!!$OMP DO
+!do k = 0,part
+!    bryter = 5
+!    pw1 = 0.001
+!    bcond = 2
+!
+!    propconst = (/0.0, 0.0, 0.0, 0.0, -0.2*k/)
+!    call newton(k,2,bryter,bcond,F0,Fp0,S0,pw1,propconst) 
+!    bryter = 5
+!    tag = 0
+!    epsp = 0
+!    call constexpr(k,2,bryter,bcond,pw1, tag, epsp,propconst)
+!    write(*,*) tag(1,1), tag(2,2) , k
+!  
+!end do
+!!$OMP END DO NOWAIT
+!!$OMP END PARALLEL
 
 
 !bryter = 6
@@ -425,11 +425,13 @@ end subroutine Yoshidamodel
             !write(*,*) dt1
             
             else
-            tag = tagcheck
-            sigma = sigmacheck
+                tag = tagcheck
+                sigma = sigmacheck
             end if
         
         end do
+        tag = tagcheck
+        sigma = sigmacheck
         consistent = .true.
     else
         tag = tagcheck
@@ -568,7 +570,7 @@ end if
         secit = 0
         pos1 = (/1, 1, 2, 3, 2/)
         pos2 =(/2, 3, 3, 3, 2/)
-        dl = 0.00001
+        dl = 0.000001
         consistent = .false.
         consistentcontroll = .false.
     
@@ -671,15 +673,15 @@ case (2)
     nit = 0
    boundary2: do while (nit < 100)
    !call sleep(2)
-   !call sleep(2)
-   !write(*,*) 
+  ! call sleep(2)
+  ! write(*,*) 
    !write(*,*) 
    tagi = tag
    epspi = epsp
    consistent = consistentcontroll
-   
+   !write(*,*) tagi(1,1), tagi(2,2),epspi, consistent, consistentcontroll
    call yoshi(Tagi,La,epspi,dt0,consistent)
-   !write(*,*) tagi(1,1), tagi(2,2), consistent, consistentcontroll
+   !write(*,*) tagi(1,1), tagi(2,2), epspi,consistent, consistentcontroll
 
     do h = 1,5
         sigma2(h) = Tagi(pos1(h),pos2(h))-propconst(h)*Tagi(1,1)
@@ -697,6 +699,8 @@ case (2)
          end if 
      do k = 1,5
             do p = 1,5
+                
+                
                 consistent = consistentcontroll
                 tagb = tag
                 epspi = epsp
@@ -709,7 +713,7 @@ case (2)
                 end if
 
                 call yoshi(Tagb,Lb,epspi,dt0,consistent)
-                
+               
                 
                 consistent = consistentcontroll
                 tagc = tag
@@ -722,6 +726,7 @@ case (2)
                 Lb(pos1(p),pos2(p)) = La(pos1(p),pos2(p)) - dl 
                 end if
                 call yoshi(Tagc,Lb,epspi,dt0,consistent)
+                
 
             jacob2(k,p) = ((Tagb(pos1(k),pos2(k))-propconst(k)*Tagb(1,1))-(Tagc(pos1(k),pos2(k))-propconst(k)*tagc(1,1)))/dl/2
             end do
