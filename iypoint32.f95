@@ -75,49 +75,49 @@ k = 0
 bcond = 2
 part = 5
 
-!call OMP_SET_NUM_THREADS(7)
-!!$OMP PARALLEL PRIVATE(F0,S0,Fp0,bryter,propconst,bcond,pw1,k,slip,Cel,eul,nlines,id,R, hardening, pi, dt, tag,epsp)
-!!$OMP DO
-!do k = 0,part
-!    bryter = 5
-!    pw1 = 0.001
-!    bcond = 2
-!    
-!    propconst = (/0.0, 0.0, 0.0, 0.0, 0.2*k/)
-!    call newton(k,2,bryter,bcond,F0,Fp0,S0,pw1,propconst) 
-!    bryter = 5
-!    tag = 0
-!    epsp = 0
-!    call constexpr(k,2,bryter,bcond,pw1, tag, epsp,propconst)
-!    write(*,*) tag(1,1), tag(2,2) , k
-!   
-!end do
-!!$OMP END DO NOWAIT
-!!$OMP END PARALLEL
+call OMP_SET_NUM_THREADS(7)
+!$OMP PARALLEL PRIVATE(F0,S0,Fp0,bryter,propconst,bcond,pw1,k,slip,Cel,eul,nlines,id,R, hardening, pi, dt, tag,epsp)
+!$OMP DO
+do k = 0,part
+    bryter = 5
+    pw1 = 0.001
+    bcond = 2
+    
+    propconst = (/0.0, 0.0, 0.0, 0.0, 0.2*k/)
+    call newton(k,2,bryter,bcond,F0,Fp0,S0,pw1,propconst) 
+    bryter = 5
+    tag = 0
+    epsp = 0
+    call constexpr(k,2,bryter,bcond,pw1, tag, epsp,propconst)
+    write(*,*) tag(1,1), tag(2,2) , k
+   
+end do
+!$OMP END DO NOWAIT
+!$OMP END PARALLEL
 
 
 bcond = 2
 part = 5
 
 call OMP_SET_NUM_THREADS(7)
-!!$OMP PARALLEL PRIVATE(F0,S0,Fp0,bryter,propconst,bcond,pw1,k,slip,Cel,eul,nlines,id,R, hardening, pi, dt, tag,epsp)
-!!$OMP DO
-!do k = 0,part
-!    bryter = 5
-!    pw1 = 0.001
-!    bcond = 2
-!
-!    propconst = (/0.0, 0.0, 0.0, 0.0, -0.2*k/)
-!    call newton(k,2,bryter,bcond,F0,Fp0,S0,pw1,propconst) 
-!    bryter = 5
-!    tag = 0
-!    epsp = 0
-!    call constexpr(k,2,bryter,bcond,pw1, tag, epsp,propconst)
-!    write(*,*) tag(1,1), tag(2,2) , k
-!  
-!end do
-!!$OMP END DO NOWAIT
-!!$OMP END PARALLEL
+!$OMP PARALLEL PRIVATE(F0,S0,Fp0,bryter,propconst,bcond,pw1,k,slip,Cel,eul,nlines,id,R, hardening, pi, dt, tag,epsp)
+!$OMP DO
+do k = 0,part
+    bryter = 5
+    pw1 = 0.001
+    bcond = 2
+
+    propconst = (/0.0, 0.0, 0.0, 0.0, -0.2*k/)
+    call newton(k,2,bryter,bcond,F0,Fp0,S0,pw1,propconst) 
+    bryter = 5
+    tag = 0
+    epsp = 0
+    call constexpr(k,2,bryter,bcond,pw1, tag, epsp,propconst)
+    write(*,*) tag(1,1), tag(2,2) , k
+  
+end do
+!$OMP END DO NOWAIT
+!$OMP END PARALLEL
 
 
 !bryter = 6
