@@ -43,21 +43,21 @@ Allocate(s0(nlines,12))
     
 k = 1
     
-    propconst = (/0.0, 0.0, 0.0, 0.0, 0.1*k/)
+    propconst = (/0.0, 0.0, 0.0, 0.0, 0.2*k/)
     bryter = 5
     tag = 0
     epsp = 0
 
 
-    propconst = (/0.0, 0.0, 0.0, 0.0, 0.1*k/)
+    !propconst = (/0.0, 0.0, 0.0, 0.0, 0.1*k/)
 Tag = 0
 epsp = 0
 pw1 = 0.001
 bryter = 5
 bcond = 2
-call constexpr(k,2,bryter,bcond,pw1, tag, epsp,propconst)
+!call constexpr(k,2,bryter,bcond,pw1, tag, epsp,propconst)
 !call newton(1,2,bryter,bcond,F0,Fp0,S0,pw1,propconst) 
-!write(*,*) bryter
+write(*,*) tag(1,1), tag(2,2)
 
 bryter = 6
 pw1 = 0.001
@@ -75,22 +75,22 @@ k = 0
 bcond = 2
 part = 5
 
-call OMP_SET_NUM_THREADS(7)
+call OMP_SET_NUM_THREADS(2)
 !$OMP PARALLEL PRIVATE(F0,S0,Fp0,bryter,propconst,bcond,pw1,k,slip,Cel,eul,nlines,id,R, hardening, pi, dt, tag,epsp)
 !$OMP DO
 do k = 0,part
     bryter = 5
     pw1 = 0.001
     bcond = 2
-    write(*,*) 'start'
-    propconst = (/0.0, 0.0, 0.0, 0.0, 0.1*k/)
+    
+    propconst = (/0.0, 0.0, 0.0, 0.0, 0.2*k/)
     call newton(k,2,bryter,bcond,F0,Fp0,S0,pw1,propconst) 
     bryter = 5
     tag = 0
     epsp = 0
     call constexpr(k,2,bryter,bcond,pw1, tag, epsp,propconst)
     write(*,*) tag(1,1), tag(2,2) , k
-    write(*,*) 'cycle'
+   
 end do
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
@@ -99,22 +99,22 @@ end do
 bcond = 2
 part = 5
 
-call OMP_SET_NUM_THREADS(7)
+call OMP_SET_NUM_THREADS(2)
 !$OMP PARALLEL PRIVATE(F0,S0,Fp0,bryter,propconst,bcond,pw1,k,slip,Cel,eul,nlines,id,R, hardening, pi, dt, tag,epsp)
 !$OMP DO
 do k = 0,part
     bryter = 5
     pw1 = 0.001
     bcond = 2
-    write(*,*) 'start'
-    propconst = (/0.0, 0.0, 0.0, 0.0, -0.1*k/)
+
+    propconst = (/0.0, 0.0, 0.0, 0.0, -0.2*k/)
     call newton(k,2,bryter,bcond,F0,Fp0,S0,pw1,propconst) 
     bryter = 5
     tag = 0
     epsp = 0
     call constexpr(k,2,bryter,bcond,pw1, tag, epsp,propconst)
     write(*,*) tag(1,1), tag(2,2) , k
-    write(*,*) 'cycle'
+   
 end do
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
@@ -349,7 +349,7 @@ end subroutine Yoshidamodel
     
     
 
-    subroutine yoshi(tag,D,epsp,dt0)
+    subroutine yoshi(tag,D,epsp,dt0,consistent)
       use crystalplasticity
         implicit none
 
@@ -392,9 +392,10 @@ end subroutine Yoshidamodel
     end do
 
     !write(*,*) epsp, abs(sigma0 - sigma)
-    if (epsp == 0 .and. abs(sigma - sigma0) > 0.0000000000001) then
-    !call eqvstress(tag,sigma)
-    !write(*,*) sigma
+    if (consistent .eqv. .false.) then
+    !call eqvstresslse.(tag,sigma)
+    
+    !    write(*,*) sigma, sigma0
     !write(*,*) 'Elastic'
         
         do i = 1,3
@@ -429,9 +430,11 @@ end subroutine Yoshidamodel
             end if
         
         end do
+        consistent = .true.
     else
         tag = tagcheck
     end if 
+    
     !write(*,*) sigmacheck - sigma0
 else
     !write(*,*) 'consistency'
@@ -559,12 +562,15 @@ end if
         integer , dimension(4) :: IPIV
         real(8) , dimension(5,5)  :: Jacob2, Jinv2
         real(8) :: pwpercision
+        logical :: consistent, consistentcontroll
         gammaskrank = 0
         pwpercision = 0.0000000001
         secit = 0
         pos1 = (/1, 1, 2, 3, 2/)
         pos2 =(/2, 3, 3, 3, 2/)
-        dl = 0.001
+        dl = 0.00001
+        consistent = .false.
+        consistentcontroll = .false.
     
     ! Sets the initial velocity gradient for the given boundary condition
     select case (bcond)
@@ -603,7 +609,7 @@ case (1)
     boundarycond: do  while (nit < 100)  
     tagi = tag
     epspi = epsp
-       call yoshi(Tagi,La,epspi,dt0)
+       call yoshi(Tagi,La,epspi,dt0,consistent)
  
        do h = 1,4
         sigma(h) = Tagi(pos1(h),pos2(h))
@@ -630,7 +636,7 @@ case (1)
                 Lb(pos1(p),pos2(p)) = La(pos1(p),pos2(p)) + dl 
                 end if
 
-                call yoshi(Tagb,Lb,epspi,dt0)
+                call yoshi(Tagb,Lb,epspi,dt0,consistent)
             jacob(k,p) = (Tagb(pos1(k),pos2(k))-Tagi(pos1(k),pos2(k)))/dl
             
             end do
@@ -660,29 +666,38 @@ case (1)
    
 case (2)
 !dl = 0.001  
-
+   
+  
     nit = 0
    boundary2: do while (nit < 100)
-   
+   !call sleep(2)
+   !call sleep(2)
+   !write(*,*) 
+   !write(*,*) 
    tagi = tag
    epspi = epsp
+   consistent = consistentcontroll
    
-   
-   call yoshi(Tagi,La,epspi,dt0)
-  ! write(*,*) tagi
+   call yoshi(Tagi,La,epspi,dt0,consistent)
+   !write(*,*) tagi(1,1), tagi(2,2), consistent, consistentcontroll
+
     do h = 1,5
         sigma2(h) = Tagi(pos1(h),pos2(h))-propconst(h)*Tagi(1,1)
     end do
-       !write(*,*) sigma2
+    !   write(*,*) La
+       !write(*,*) epspi
+       
          minl = minloc(sigma2, DIM = 1)
          maxl = maxloc(sigma2, DIM = 1)
          if (abs(sigma2(minl)) < 0.00000000001 .and. abs(sigma2(maxl)) < 0.00000000001) then
-          ! write(*,*) sigma2 , epspi
-          ! write(*,*) tagi
+          consistentcontroll = consistent
+            ! write(*,*) sigma2 , epspi
+       !      write(*,*) tagi(1,1), tagi(2,2)
             exit boundary2
          end if 
      do k = 1,5
             do p = 1,5
+                consistent = consistentcontroll
                 tagb = tag
                 epspi = epsp
                 Lb = La
@@ -693,8 +708,10 @@ case (2)
                 Lb(pos1(p),pos2(p)) = La(pos1(p),pos2(p)) + dl 
                 end if
 
-                call yoshi(Tagb,Lb,epspi,dt0)
-
+                call yoshi(Tagb,Lb,epspi,dt0,consistent)
+                
+                
+                consistent = consistentcontroll
                 tagc = tag
                 epspi = epsp
                 Lb = La
@@ -704,7 +721,7 @@ case (2)
                 else if (pos1(p) == pos2(p)) then
                 Lb(pos1(p),pos2(p)) = La(pos1(p),pos2(p)) - dl 
                 end if
-                call yoshi(Tagc,Lb,epspi,dt0)
+                call yoshi(Tagc,Lb,epspi,dt0,consistent)
 
             jacob2(k,p) = ((Tagb(pos1(k),pos2(k))-propconst(k)*Tagb(1,1))-(Tagc(pos1(k),pos2(k))-propconst(k)*tagc(1,1)))/dl/2
             end do
@@ -740,7 +757,7 @@ case (2)
         !call sleep(3)
    end do boundary2
 end select
-!call sleep(2)
+
 if (bryter == 1 .or. bryter == 5 .or. bryter == 4) then
        
         
@@ -752,7 +769,9 @@ if (bryter == 1 .or. bryter == 5 .or. bryter == 4) then
         dt0 = (strain-epsp)*dt0/(epspi-epsp)*0.7
         end if
         secit = secit +1
+        !write(*,*) 'Tidsskritt redusert'
         !write(*,*) dt0, epspi, epsp
+        !write(*,*)
         switch = switch + 1
         if (secit > 30) then 
             write(*,*) epspi
@@ -763,7 +782,7 @@ if (bryter == 1 .or. bryter == 5 .or. bryter == 4) then
     end if 
     
     tag = tagi
-    !write(*,*) epspi, nit, dt0, l
+    write(*,*) epspi, nit, dt0, l, consistentcontroll
     epsp = epspi
     !write(*,*) epsp
     if (bryter == 5) then
