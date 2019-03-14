@@ -2,17 +2,18 @@ module crystalplasticity
 use global
 
 contains
-subroutine newton(k,part,bryter,bcond,F0i,Fp0i,S0i,pw,propconst)
+subroutine newton(k,part,bryter,bcond,F0i,Fp0i,S0i,pw,propconst,fid)
     
     implicit none
 real(8) , dimension(3,3)  :: La, Tag, Dp
 real(8) :: pw
-integer ::  k, part,teller,bry,bcond
+integer ::  k, part,teller,bry,bcond,fid
 integer  :: bryter
 !real(8), dimension(nlines,3), intent(in) :: eul
 real(8) , dimension(3,3,nlines)  :: Fp0i,F0i
 real(8),  dimension(nlines,12) :: S0i
 real(8), dimension(5) :: propconst
+character*15 :: filename
 bry = 0
 if (bryter == 4) then 
     bry = 1
@@ -27,7 +28,13 @@ else if (bryter == 8) then
     bry = 5
 end if
 
-
+if (bcond == 1) then
+    write(filename,'("Dp_cp_",I2,"_",I2)') fid , k  
+    open(unit=fid+20, file=filename, status='replace')
+    else   
+    write(filename,'("Dp_cp_",I2,"_",I2)') fid , 99 
+    open(unit=fid+20, file=filename, status='replace')
+ end if
 
 
 
@@ -46,11 +53,11 @@ La(3,1) = 0
 La(2,3) = 0
 La(3,2) = 0
 
-    call taylor(La,Tag,bryter,bcond,F0i,Fp0i,S0i,pw,Dp,propconst)
+    call taylor(La,Tag,bryter,bcond,F0i,Fp0i,S0i,pw,Dp,propconst,fid)
     write(*,*) Tag(1,1), tag(2,2), k
     if (bry == 1) then ! If one want relaxed state. 
         !Performes relaxation
-        call taylor(La,Tag,3,bcond,F0i,Fp0i,S0i,pw,Dp,propconst)
+        call taylor(La,Tag,3,bcond,F0i,Fp0i,S0i,pw,Dp,propconst,fid)
     end if
 if (bryter == 2) then
 write(3,*) Tag(1,1), Tag(2,2), k
@@ -73,24 +80,25 @@ if (bry == 5) then
     if (bryter == 4) then 
 
     end if
+    close(unit=fid+20)
 end subroutine newton
 
 
-subroutine taylor(La,Tag,bryter,bcond,F0i,Fp0i,S0i,pw,Dp,propconst)
+subroutine taylor(La,Tag,bryter,bcond,F0i,Fp0i,S0i,pw,Dp,propconst,fid)
     
         implicit none
     
      
     !Declear all variables
  
-    real(8) :: phi1, Phi, phi2,dt0, sigmaeq, gammatot,pw,gammatoti,gammaskrank,dot, dl, nor1,nor2,epsp
+    real(8) :: phi1, Phi, phi2,dt0, gammatot,pw,gammatoti,gammaskrank,dot, dl,epsp
     real(8) , dimension(3,3)  :: grad,T0 , Dp, Lb, Tagb, La0,Dp2, Lc, tagcc
                         
     real(8) , dimension(3,3) :: La
     real(8) , dimension(3,3), intent(out)  :: Tag
     real(8) , dimension(3,3,nlines) ::  F0, F02, Fp0, Fp02, Fp0i,Fp0int,F0i,F0int, Tagc, Tagcint
     real(8),  dimension(nlines,12) :: s0,S0i,S0in, S02
-    integer :: i, switch , o,p,k,h, bryter,secit
+    integer :: i, switch , o,p,k,h, bryter,secit, tell,fid
     real(8) , dimension(4,4)  :: Jacob, Jinv
     real(8) , dimension(4)  :: sigma, offdl
     integer :: LDA = 4,NRHS = 1, Info,  minl, maxl,nit,bcond,centraldiff, proximity
@@ -98,7 +106,7 @@ subroutine taylor(La,Tag,bryter,bcond,F0i,Fp0i,S0i,pw,Dp,propconst)
     real(8), dimension(5) :: propconst, offdl2, sigma2, IPIV2
     real(8) , dimension(5,5)  :: Jacob2, Jinv2
     integer, dimension(5) :: pos1, pos2
-    real(8) :: pwpercision, epspi, convcriterion, test
+    real(8) :: pwpercision, epspi, convcriterion, deltak, normsigma
     
     ! The percision of the plastic work given in relative fraction
     pwpercision = 0.0000000000001
@@ -107,10 +115,10 @@ subroutine taylor(La,Tag,bryter,bcond,F0i,Fp0i,S0i,pw,Dp,propconst)
     proximity = 0
     !Timeincrement
     !dt0 = 0.0000001
-
+deltak = 0.5
     pos1 = (/1, 1, 2, 3, 2/)
     pos2 =(/2, 3, 3, 3, 2/)
-    dl = 0.000001
+    dl = 0.00000001
     La0 = La
     !Define velocity gradient
     !strainrate
@@ -120,11 +128,9 @@ subroutine taylor(La,Tag,bryter,bcond,F0i,Fp0i,S0i,pw,Dp,propconst)
         S0 = s0i 
         Fp0 = Fp0i  
         F0 = F0i  
-        S02 = s0
-        Fp02 = Fp0
-        F02 = F0
+        
         !propconst = (/0.0, 0.0, 0.0, 0.0, 0.0/)
-    
+        
     
  
    
@@ -178,16 +184,21 @@ else if (bryter == 3 ) then
     write(*,*) bryter
     end if 
 if (bcond == 2) then
-    La(1,1) = 1/sqrt(1.0+propconst(5)**2)
-    La(2,2) = propconst(5)**2/sqrt(1.0+propconst(5)**2)
+    !La(1,1) = 1/sqrt(1.0+propconst(5)**2)
+    La(1,1) = 1
+    !La(2,2) = propconst(5)/sqrt(1.0+propconst(5)**2)
     La(1,2) = 0
+    La(2,2) = propconst(5)
     La(2,1) = 0
     La(1,3) = 0
     La(3,1) = 0
     La(2,3) = 0
     La(3,2) = 0
-    La(3,3) = -1.0/3.0*(La(1,1)+La(2,2))
-
+    La(3,3) = -0.35*(La(1,1)+La(2,2))
+   ! write(*,*) La
+La = La/norm2(La)
+Lc = La
+!write(*,*) Lc
 end if   
 
     gammaskrank = 0.000000001
@@ -211,17 +222,17 @@ Select case (bcond)
 case (1)    
 !!! Iteration to ensure boundary condition is satisfied at througout all timesteps. 
     nit = 0   
-    boundarycond: do  while (nit < 15)  
+    boundarycond: do  while (nit < 25)  
     
        call timestep(Tag, Dp, La, gammatot, gammatoti, Fp0, Fp0int, F0, F0int,S0in,s0,dt0)
        
        do h = 1,4
         sigma(h) = Tag(pos1(h),pos2(h))
        end do
-       !write(*,*) sigma , Tag(1,1), Tag(2,2), epsp+norm2(Dp)*sqrt(2./3.)*dt0, dt0, epsp
+      ! write(*,*) sigma , norm2(La), epsp
          minl = minloc(sigma, DIM = 1)
          maxl = maxloc(sigma, DIM = 1)
-         if (abs(sigma(minl)) < 0.00000000001 .and. abs(sigma(maxl)) < 0.00000000001) then
+         if (abs(sigma(minl)) < convcriterion .and. abs(sigma(maxl)) < convcriterion) then
             !write(*,*) sigma , Tag(1,1), Tag(2,2), gammatoti
    
             exit boundarycond
@@ -230,6 +241,8 @@ case (1)
 !!!!!! Calculate Jacobian matrix in order to satisfy boundary condition
        do k = 1,4
             do p = 1,4
+            select case(centraldiff)
+            case(2)
                 Lb = La
                 if (pos1(p) /= pos2(p)) then
                 Lb(pos1(p),pos2(p)) = La(pos1(p),pos2(p)) + dl
@@ -249,6 +262,18 @@ case (1)
 
                 call timestep(Tagcc, Dp, Lb, gammatot, gammatoti, Fp0, Fp0int, F0, F0int,S0in,s0,dt0)
             jacob(k,p) = (Tagb(pos1(k),pos2(k))-Tagcc(pos1(k),pos2(k)))/dl/2
+            case(1)
+                Lb = La
+                if (pos1(p) /= pos2(p)) then
+                Lb(pos1(p),pos2(p)) = La(pos1(p),pos2(p)) + dl
+                Lb(pos2(p),pos1(p)) = La(pos2(p),pos1(p)) + dl
+                else if (pos1(p) == pos2(p)) then
+                Lb(pos1(p),pos2(p)) = La(pos1(p),pos2(p)) + dl 
+                end if
+
+                call timestep(Tagb, Dp, Lb, gammatot, gammatoti, Fp0, Fp0int, F0, F0int,S0in,s0,dt0)
+                jacob(k,p) = (Tagb(pos1(k),pos2(k))-Tag(pos1(k),pos2(k)))/dl
+            end select
             end do
         end do
     
@@ -275,41 +300,34 @@ case (1)
    
 case (2)
     nit = 0
+   deltak = 0.5
+   tell = 0
+   !Lc = La
+   normsigma = 1000
    
-    Lc = La
-   boundary2: do while (nit < 50)
+   boundary2: do while (nit < 200)
    epspi = epsp
-  !Lc = Lc/norm2(Lc)
-    if (dt0 < 1e-9) then
-        test = 0.0
-        write(*,*) tag
-        call timestep(Tag, Dp, Lc, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,S0in,s0,test)
-        write(*,*) sum(Fp0int -Fp0), sum(F0int -F0), sum(s0in-S0)
-        call timestep(Tag, Dp, Lc, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,S0in,s0,test)
-        write(*,*) sum(Fp0int -Fp0), sum(F0int -F0), sum(s0in-S0)
-        write(*,*) tag
-    end if
+  
+    
     call timestep(Tag, Dp, Lc, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,S0in,s0,dt0)
-    if (dt0 < 1e-9) then
-       ! write(*,*) tag
-    end if
+   
     do h = 1,5
         sigma2(h) = Tag(pos1(h),pos2(h))-propconst(h)*Tag(1,1)
     end do
-    !write(*,*)  sigma2, epsp+norm2(Dp)*sqrt(2./3.)*dt0, epsp, dt0, norm2(Lc), dl
+    
+   
+    normsigma = norm2(sigma2)
+    !write(*,*)  sigma2 , epsp+norm2(Dp)*sqrt(2./3.)*dt0, epsp, norm2(Lc)
+    !write(*,*)  sigma2 , norm2(Lc), epsp
+  ! write(*,*) tag
    
          minl = minloc(sigma2, DIM = 1)
          maxl = maxloc(sigma2, DIM = 1)
          if (abs(sigma2(minl)) < convcriterion .and. abs(sigma2(maxl)) < convcriterion) then
-          !  write(*,*)
-           ! write(*,*) sigma2 , Tag(1,1), Tag(2,2), epsp+norm2(Dp)*sqrt(2./3.)*dt0
-           ! write(*,*)
-           ! write(*,*) abs(sigma2)
-           ! write(*,*)
-         !   write(*,*) tag
             exit boundary2
          end if 
-     do k = 1,5
+     
+         do k = 1,5
             do p = 1,5
             select case (centraldiff)
             case(2)
@@ -331,15 +349,11 @@ case (2)
                 end if
 
                 call timestep(Tagcc, Dp, Lb, gammatot, gammatoti, Fp0, Fp0int, F0, F0int,S0in,s0,dt0)
-            jacob2(k,p) = (Tagb(pos1(k),pos2(k))-Tagcc(pos1(k),pos2(k)))/dl/2
-               ! if (abs(Tagb(pos1(k),pos2(k))-Tagcc(pos1(k),pos2(k)))< 1e-12) then 
-               !     write(*,*) 'low jacobi'
-               !     write(*,*)  Tagb(pos1(k),pos2(k))-Tagcc(pos1(k),pos2(k))
-               ! end if
-
+            jacob2(k,p) = ((Tagb(pos1(k),pos2(k)) - propconst(k)*Tagb(1,1)) - (Tagcc(pos1(k),pos2(k))-propconst(k)*Tagcc(1,1)))/dl/2
+               
             case(1)
                 
-               Lb = Lc
+                Lb = Lc
                 if (pos1(p) /= pos2(p)) then
                 Lb(pos1(p),pos2(p)) = Lc(pos1(p),pos2(p)) + dl
                 Lb(pos2(p),pos1(p)) = Lc(pos2(p),pos1(p)) + dl
@@ -348,49 +362,47 @@ case (2)
                 end if
 
                 call timestep(Tagb, Dp, Lb, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,S0in,s0,dt0)
-            jacob2(k,p) = ((Tagb(pos1(k),pos2(k))-propconst(k)*Tagb(1,1))-(Tag(pos1(k),pos2(k))-propconst(k)*tag(1,1)))/dl
+                jacob2(k,p) = ((Tagb(pos1(k),pos2(k))-propconst(k)*Tagb(1,1))-(Tag(pos1(k),pos2(k))-propconst(k)*tag(1,1)))/dl
             end select
             end do
         end do
         Jinv2 = jacob2
         offdl2 = -sigma2
-        !write(*,*) offdl2
-        call dgesv(5,1,Jinv2,5,IPIV2,offdl2, 5 , Info)
-       ! write(*,*) info
-       ! write(*,*) offdl2
-        Lc(1,2) = Lc(1,2) + offdl2(1)
-        Lc(2,1) = Lc(2,1) + offdl2(1)
-        Lc(1,3) = Lc(1,3) + offdl2(2)
-        Lc(3,1) = Lc(3,1) + offdl2(2)
-        Lc(2,3) = Lc(2,3) + offdl2(3)
-        Lc(3,2) = Lc(3,2) + offdl2(3)
-        Lc(3,3) = Lc(3,3) + offdl2(4)
-        Lc(2,2) = Lc(2,2) + offdl2(5)
-      
+     
+       ! call dgesv(5,1,Jinv2,5,IPIV2,offdl2, 5 , Info)
+       Call eqnsolver(jacob2,Lc,sigma2)
+       
+       
+        !Lc(1,2) = Lc(1,2) + offdl2(1)
+        !Lc(2,1) = Lc(2,1) + offdl2(1)
+        !Lc(1,3) = Lc(1,3) + offdl2(2)
+        !Lc(3,1) = Lc(3,1) + offdl2(2)
+        !Lc(2,3) = Lc(2,3) + offdl2(3)
+        !Lc(3,2) = Lc(3,2) + offdl2(3)
+        !Lc(3,3) = Lc(3,3) + offdl2(4)
+        !Lc(2,2) = Lc(2,2) + offdl2(5)
+        
+
+
+       
+        
+      !write(*,*) offdl2
         nit = nit+1
-        !if (nit == 49 .or. norm2(Lc) > 2) then
-         !   dt0 = dt0*0.5
-         !   nit = 0
-         !   Lc = la
-         !   dl = 0.00001
-        !end if
+        
    end do boundary2
 
 case (3)
     call timestep(Tag, Dp, La, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,S0in,s0,dt0)
     write(*,*) Tag(1,1), Tag(2,2), epsp+norm2(Dp)*sqrt(2./3.)*dt0
 end select
-  !if (gammatoti > pw) then 
-  !  write(*,*) 'reached plastic work'
-  !  exit iter
-  ! end if
-   
+ 
+!Update strain measure   
 epspi = epsp+norm2(Dp)*sqrt(2./3.)*dt0
    
 
    
    
-       !write(*,*) Tag
+      
     if (mod(switch,5000-1)==0) then 
         !   write(8,*) phi1, Phi, phi2
        end if 
@@ -403,24 +415,14 @@ epspi = epsp+norm2(Dp)*sqrt(2./3.)*dt0
        
         if ((epspi > pw .or. proximity == 1) .and. abs((epspi - pw)) > pwpercision) then
             centraldiff = 2
-            !bcond = 3
             proximity = 1
             if (pw == 0) then
                 dt0 = dt0/2
             else
-               ! if ((pw-epsp)/(epspi-epsp)< 1e-2) then
+           
             dt0 = (pw-epsp)*dt0/(epspi-epsp)
             dl = dl*(epspi-epsp)/(pw-epsp)
-            !convcriterion = convcriterion/10
-              !  else 
-               !     dt0 = (pw-epsp)*dt0/(epspi-epsp)*0.1
-               !     dl = dl*(epspi-epsp)/(pw-epsp)
-               ! end if
-            write(*,*) dt0, epsp
-               ! dt0 = dt0/2
-               
             end if
-            !write(*,*) dt0, sigma, gammatoti-pw, nor1, nor2
             switch = switch +1
             secit = secit +1
             if (secit > 250) then 
@@ -430,29 +432,13 @@ epspi = epsp+norm2(Dp)*sqrt(2./3.)*dt0
             end if 
             cycle iter
         end if 
-        !dt0 = dt
-        !dl = 0.00001
-        if (bcond == 3) then
-            bcond = 2
-            cycle iter
-            
-        end if
-        
-        !dl = 0.00001
-        !write(*,*) Sum(F0-F02), sum(s0-s02), sum(Fp0-Fp02)
+       
         F0 = F0int
-        Fp0 = Fp0int
-        
+        Fp0 = Fp0int 
         s0 = s0in
         gammatot = gammatoti 
         La = Lc
         epsp = epspi
-        bcond = 2
-        
-
-        S02 = s0
-        Fp02 = Fp0
-        F02 = F0
         if (bryter == 5) then
             if (gammatot > gammaskrank) then
                 write(8,*) bryter, gammatoti
@@ -488,7 +474,7 @@ epspi = epsp+norm2(Dp)*sqrt(2./3.)*dt0
             write(8,*)
             write(8,*)
 
-            write(13,*) Tag(1,1), Tag(2,2), Dp(1,1)  /sqrt(  Dp(1,1)**2+Dp(2,2)**2),Dp(2,2)/sqrt(Dp(1,1)**2+Dp(2,2)**2)
+            write(fid+20,*) Tag(1,1), Tag(2,2), Dp(1,1)  /sqrt(  Dp(1,1)**2+Dp(2,2)**2),Dp(2,2)/sqrt(Dp(1,1)**2+Dp(2,2)**2)
             write(14,*) Tag(1,1), Tag(2,2), Dp2(1,1) /sqrt( Dp2(1,1)**2+Dp2(2,2)**2), Dp2(2,2)/sqrt(Dp2(1,1)**2+Dp2(2,2)**2)
             write(16,*) Tag(1,1), Tag(2,2), Grad(1,1)/sqrt(Grad(1,1)**2+Grad(2,2)**2),Grad(2,2)/sqrt(Grad(1,1)**2+Grad(2,2)**2)
             
@@ -514,11 +500,14 @@ epspi = epsp+norm2(Dp)*sqrt(2./3.)*dt0
     else if (bryter == 2 .or. bryter == 6) then
         
         if (pw /= 0) then
-        if (epspi > pw .and. abs((epspi - pw)/pw) > pwpercision) then
+        if ((epspi > pw .or. proximity == 1) .and. abs((epspi - pw)/pw) > pwpercision) then
+            centraldiff = 2
+            proximity = 1
+            
             if (pw == 0) then
                 dt0 = dt0/2
             else
-            dt0 = (pw-epsp)*dt0/(epspi-epsp)*0.5
+            dt0 = (pw-epsp)*dt0/(epspi-epsp)
             end if
             write(*,*) dt0, sigma, gammatoti-pw
             switch = switch +1
@@ -550,12 +539,13 @@ epspi = epsp+norm2(Dp)*sqrt(2./3.)*dt0
         epsp = epspi
         if (bryter == 6) then
             if (gammatot > gammaskrank) then
+                
                 write(8,*) bryter, gammatoti
                 call contract2(La,Dp,dot)
                 dot = dot/norm2(La)/norm2(Dp)
             write(11,*) Tag(1,3),Tag(1,2), Tag(2,3), Tag(3,3) , dot , acos(dot), gammatot
           
-            gammaskrank = gammaskrank + 0.00000005
+            gammaskrank = gammaskrank + 0.000001
             !write(8,*) Tag(1,1),Tag(2,2), Dp(1,1)/sqrt(Dp(1,1)**2+Dp(2,2)**2),Dp(2,2)/sqrt(Dp(1,1)**2+Dp(2,2)**2.)
             write(8,*) 'La'
             write(8,*) La/norm2(La)
@@ -583,7 +573,7 @@ epspi = epsp+norm2(Dp)*sqrt(2./3.)*dt0
             write(8,*)
             write(8,*)
 
-            write(13,*) Tag(1,1), Tag(2,2), Dp(1,1)  /sqrt(  Dp(1,1)**2+Dp(2,2)**2),Dp(2,2)/sqrt(Dp(1,1)**2+Dp(2,2)**2)
+            write(fid+20,*) Tag(1,1), Tag(2,2), Dp(1,1)  /sqrt(  Dp(1,1)**2+Dp(2,2)**2),Dp(2,2)/sqrt(Dp(1,1)**2+Dp(2,2)**2)
             write(14,*) Tag(1,1), Tag(2,2), Dp2(1,1) /sqrt( Dp2(1,1)**2+Dp2(2,2)**2), Dp2(2,2)/sqrt(Dp2(1,1)**2+Dp2(2,2)**2)
             write(16,*) Tag(1,1), Tag(2,2), Grad(1,1)/sqrt(Grad(1,1)**2+Grad(2,2)**2),Grad(2,2)/sqrt(Grad(1,1)**2+Grad(2,2)**2)
             write(3,*) tag(1,1) , gammatot
@@ -1311,3 +1301,84 @@ end do
     end subroutine elastoplasticmoduli
 
 end module 
+
+
+
+subroutine eqnsolver(J,La,sigma2)
+    implicit none
+    real(8), dimension(5,5) :: J, U, V, S, Jin, VS
+    real(8), dimension(3,3) :: LA
+    real(8), dimension(5) :: sigma2 , Sing, p, b, dx, p0, offdl2
+    real(8), dimension(1000) :: WORK
+    integer :: LWmax = 1000, info, i, k
+    real(8) :: deltak, alphak
+
+
+deltak = 0.5
+
+
+
+Jin = J
+    call dgesvd('A','A',5,5,Jin,5,Sing,U,5,V,5, &
+            WORK, LWMAX ,INFO)
+
+        
+
+do i = 1,5
+    if (abs(Sing(i)) > 0) then
+        S(i,i) = 1/Sing(i)
+    else
+        S(i,i) = 0
+    end if
+end do
+
+V = transpose(V)
+VS = -matmul(V,S)
+b = matmul(transpose(U),sigma2)
+
+p = matmul(VS,b)
+
+k = 0
+step: if (norm2(p) <= deltak) then 
+    dx = p
+
+else
+    jit: do while(k > 0)
+    S = 0
+    p = p0
+    do i = 1,k
+        if (abs(Sing(i)) > 0) then
+            S(i,i) = 1/Sing(i)
+        else
+            S(i,i) = 0
+        end if
+    end do
+    VS = -matmul(V,S)
+   p = matmul(VS,b)
+   if (norm2(p) > deltak) then
+    k = k-1
+   else 
+    alphak =(-2*dot_product(p,p0-p)+sqrt(4*dot_product(p,p0-p)**2-4*norm2(p0-p)**2*(-deltak**2+norm2(p)**2)))/(2*norm2(p0-p)**2)
+    dx = p + alphak*(p0-p)
+write(*,*) 'case 2'
+write(*,*) norm2(dx), k
+    exit step
+   end if 
+    end do jit 
+
+    dx = p/norm2(p)*deltak
+
+end if step
+
+!write(*,*) p
+
+La(1,2) = La(1,2) + dx(1)
+La(2,1) = La(2,1) + dx(1)
+La(1,3) = La(1,3) + dx(2)
+La(3,1) = La(3,1) + dx(2)
+La(2,3) = La(2,3) + dx(3)
+La(3,2) = La(3,2) + dx(3)
+La(3,3) = La(3,3) + dx(4)
+La(2,2) = La(2,2) + dx(5)
+
+end subroutine eqnsolver

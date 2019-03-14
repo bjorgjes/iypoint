@@ -2,7 +2,7 @@ program ypoint
 use crystalplasticity
     implicit none
 
-integer :: part,bryter, k, i,bcond
+integer :: part,bryter, k, i,bcond, fid
 real(8) :: t1,t2,omp_get_wtime,pw1,pw2,epsp, dt0
 real(8) , dimension(3,3) :: tag, D
 real(8) , dimension(5) :: propconst
@@ -41,29 +41,31 @@ Allocate(s0(nlines,12))
 
 
     
-k = 1
+k = 3
     
-    propconst = (/0.0, 0.0, 0.0, 0.0, 0.2*k/)
+    propconst = (/0.0, 0.0, 0.0, 0.0, 0.5/)
     bryter = 5
     tag = 0
     epsp = 0
 
-
+fid = 20
     !propconst = (/0.0, 0.0, 0.0, 0.0, 0.1*k/)
 Tag = 0
 epsp = 0
-pw1 = 0.001
+pw1 = 0.002
 bryter = 5
 bcond = 2
-call constexpr(k,2,bryter,bcond,pw1, tag, epsp,propconst)
-!call newton(1,2,bryter,bcond,F0,Fp0,S0,pw1,propconst) 
-write(*,*) tag(1,1), tag(2,2)
+call constexpr(k,2,bryter,bcond,pw1, tag, epsp,propconst,fid)
+call newton(1,2,bryter,bcond,F0,Fp0,S0,pw1,propconst,fid) 
+write(*,*) tag(1,1), tag(2,2), epsp
 
 bryter = 6
-pw1 = 0.001
-k = 0
-!call constexpr(k,2,bryter,pw1, tag, epsp)
-!call newton(0,3,bryter,F0,Fp0,S0,pw1)   
+pw1 = 0.004
+pw2 = 0.002
+k = 1
+bcond = 1
+call constexpr(k,4,bryter, bcond,pw1, tag, epsp, propconst,fid)
+call newton(k,4,bryter,bcond,F0,Fp0,S0,pw2,propconst,fid)   
 !write(*,*) 'check1'
 !F0 = F0i
 !S0 = S0i
@@ -75,44 +77,45 @@ k = 0
 bcond = 2
 part = 5
 
-call OMP_SET_NUM_THREADS(7)
-!$OMP PARALLEL PRIVATE(F0,S0,Fp0,bryter,propconst,bcond,pw1,k,slip,Cel,eul,nlines,id,R, hardening, pi, dt, tag,epsp)
-!$OMP DO
-do k = 0,part
-    bryter = 5
-    pw1 = 0.001
-    bcond = 2
-    
-    propconst = (/0.0, 0.0, 0.0, 0.0, 0.2*k/)
-    call newton(k,2,bryter,bcond,F0,Fp0,S0,pw1,propconst) 
-    bryter = 5
-    tag = 0
-    epsp = 0
-    call constexpr(k,2,bryter,bcond,pw1, tag, epsp,propconst)
-    write(*,*) tag(1,1), tag(2,2) , k
-   
-end do
-!$OMP END DO NOWAIT
-!$OMP END PARALLEL
+!call OMP_SET_NUM_THREADS(7)
+!!$OMP PARALLEL PRIVATE(F0,S0,Fp0,bryter,propconst,bcond,pw1,k,slip,Cel,eul,nlines,id,R, hardening, pi, dt, tag,epsp)
+!!$OMP DO
+!do k = 0,part
+!    bryter = 5
+!    pw1 = 0.001
+!    bcond = 2
+!    
+!    propconst = (/0.0, 0.0, 0.0, 0.0, 0.2*k/)
+!    call newton(k,2,bryter,bcond,F0,Fp0,S0,pw1,propconst) 
+!    bryter = 5
+!    tag = 0
+!    epsp = 0
+!    call constexpr(k,2,bryter,bcond,pw1, tag, epsp,propconst)
+!    write(*,*) tag(1,1), tag(2,2) , k
+!   
+!end do
+!!$OMP END DO NOWAIT
+!!$OMP END PARALLEL
 
 
 bcond = 2
-part = 5
+part = 20
 
 call OMP_SET_NUM_THREADS(7)
-!$OMP PARALLEL PRIVATE(F0,S0,Fp0,bryter,propconst,bcond,pw1,k,slip,Cel,eul,nlines,id,R, hardening, pi, dt, tag,epsp)
+!$OMP PARALLEL PRIVATE(F0,S0,Fp0,bryter,propconst,bcond,pw1,k,slip,Cel,eul,nlines,id,R, hardening, pi, dt, tag,epsp,fid)
 !$OMP DO
 do k = 0,part
-    bryter = 5
-    pw1 = 0.001
-    bcond = 2
+    bryter = 6
+    pw1 = 0.004
+    pw2 = 0.002
+    bcond = 1
 
     propconst = (/0.0, 0.0, 0.0, 0.0, -0.2*k/)
-    call newton(k,2,bryter,bcond,F0,Fp0,S0,pw1,propconst) 
-    bryter = 5
+    call newton(k,10,bryter,bcond,F0,Fp0,S0,pw2,propconst,fid) 
+    bryter = 6
     tag = 0
     epsp = 0
-    call constexpr(k,2,bryter,bcond,pw1, tag, epsp,propconst)
+    call constexpr(k,10,bryter,bcond,pw1, tag, epsp,propconst,fid)
     write(*,*) tag(1,1), tag(2,2) , k
   
 end do
@@ -545,7 +548,7 @@ end if
     return
     end subroutine yoshi
 
-    subroutine constexpr(l,part,bryter,bcond,strain,tag,epsp,propconst)
+    subroutine constexpr(l,part,bryter,bcond,strain,tag,epsp,propconst,fid)
         use crystalplasticity
         implicit none
 
@@ -560,20 +563,28 @@ end if
         integer ::  switch , p,k,h,l, bryter,secit,part
         real(8) , dimension(4,4)  :: Jacob, Jinv
         
-        integer :: LDA = 4,NRHS = 1, Info,  minl, maxl,nit,bcond
+        integer :: LDA = 4,NRHS = 1, Info,  minl, maxl,nit,bcond,fid
         integer , dimension(4) :: IPIV
         real(8) , dimension(5,5)  :: Jacob2, Jinv2
         real(8) :: pwpercision
         logical :: consistent, consistentcontroll
+        character*16 :: filename
         gammaskrank = 0
         pwpercision = 0.0000000001
         secit = 0
         pos1 = (/1, 1, 2, 3, 2/)
         pos2 =(/2, 3, 3, 3, 2/)
-        dl = 0.000001
+        dl = 0.00001
         consistent = .false.
         consistentcontroll = .false.
-    
+        if (bcond == 1) then
+        write(filename,'("Dp_con_",I2,"_",I2)') fid , l   
+        open(unit=fid, file=filename, status='replace')
+        else   
+        write(filename,'("Dp_con_",I2,"_",I2)') fid , 99 
+        open(unit=fid, file=filename, status='replace')
+        end if
+
     ! Sets the initial velocity gradient for the given boundary condition
     select case (bcond)
     case(1)
@@ -611,6 +622,7 @@ case (1)
     boundarycond: do  while (nit < 100)  
     tagi = tag
     epspi = epsp
+    consistent = consistentcontroll
        call yoshi(Tagi,La,epspi,dt0,consistent)
  
        do h = 1,4
@@ -622,12 +634,14 @@ case (1)
          maxl = maxloc(sigma, DIM = 1)
          
          if (abs(sigma(minl)) < 0.00000000001 .and. abs(sigma(maxl)) < 0.00000000001) then
+            consistentcontroll = consistent
             !write(*,*) sigma(4) , Tagi(1,1), Tagi(2,2), epspi
             exit boundarycond
          end if 
 !!!!!! Calculate Jacobian matrix in order to satisfy boundary condition
        do k = 1,4
             do p = 1,4
+                consistent = consistentcontroll
                 tagb = tag
                 epspi = epsp
                 Lb = La
@@ -746,20 +760,6 @@ case (2)
       
         nit = nit+1
 
-        !write(*,*) La
-        !write(*,*) tagi
-        !write(*,*) tagb
-        !write(*,*) 
-        !write(*,*) Jacob2(1,1:5)
-        !write(*,*) Jacob2(2,1:5)
-        !write(*,*) Jacob2(3,1:5)
-        !write(*,*) Jacob2(4,1:5)
-        !write(*,*) Jacob2(5,1:5)
-        !write(*,*) 
-
-
-        
-        !call sleep(3)
    end do boundary2
 end select
 
@@ -787,17 +787,19 @@ if (bryter == 1 .or. bryter == 5 .or. bryter == 4) then
     end if 
     
     tag = tagi
-    write(*,*) epspi, nit, dt0, l, consistentcontroll
+   ! write(*,*) epspi, nit, dt0, l, consistentcontroll
     epsp = epspi
     !write(*,*) epsp
     if (bryter == 5) then
         if (epsp > gammaskrank) then
             write(8,*) bryter, epspi
             
+        
         write(11,*) Tag(1,3), Tag(1,2), Tag(2,3), Tag(3,3) ,epsp
         call Yoshidamodel(tag,La,Dp)
         
-        write(18,*) Tag(1,1), Tag(2,2) , Dp(1,1), Dp(2,2) 
+
+        write(fid,*) Tag(1,1), Tag(2,2) , Dp(1,1), Dp(2,2) 
         gammaskrank = gammaskrank + 0.0000001
         
         end if
@@ -841,17 +843,17 @@ else if (bryter == 2 .or. bryter == 6) then
 
     tag = tagi
     epsp = epspi 
-    write(*,*) epsp
+    !write(*,*) epsp
 
     if (bryter == 6) then
         if (epsp > gammaskrank) then
             write(8,*) bryter, epspi
             
         write(11,*) Tag(1,1), tag(2,2), Tag(1,3),Tag(1,2), Tag(2,3), Tag(3,3),  epsp
-            call Yoshidamodel(tag,La,Dp)
+        call Yoshidamodel(tag,La,Dp)
 
-        gammaskrank = gammaskrank + 0.00000005
-        write(13,*) Tag(1,1), Tag(2,2) , Dp(1,1), Dp(2,2) 
+        gammaskrank = gammaskrank + 0.0000001
+        write(fid,*) Tag(1,1), Tag(2,2) , Dp(1,1), Dp(2,2) 
         !write(8,*) Tag(1,1),Tag(2,2), Dp(1,1)/sqrt(Dp(1,1)**2+Dp(2,2)**2),Dp(2,2)/sqrt(Dp(1,1)**2+Dp(2,2)**2.)
         
         end if
@@ -867,7 +869,7 @@ else if (bryter == 2 .or. bryter == 6) then
 end if 
 switch = switch +1 
     end do iter
-
+close(unit=fid)
 end subroutine constexpr
 
 subroutine elasticsolution(D,tag)
