@@ -58,7 +58,7 @@ epsp = 0
 pw1 = 0.002
 bryter = 5
 bcond = 2
-!call constexpr(k,2,bryter,bcond,pw1, tag, epsp,propconst,fid)
+call constexpr(k,2,bryter,bcond,pw1, tag, epsp,propconst,fid)
 call newton(k,2,bryter,bcond,F0,Fp0,S0,pw1,propconst,fid) 
 !write(*,*) tag(1,1), tag(2,2), epsp
 
@@ -76,19 +76,21 @@ epsp1 = epsp
 F01 = F0
 Fp01 = Fp0
 S01 = S0
-part = 4
-call OMP_SET_NUM_THREADS(2)
-!$OMP PARALLEL PRIVATE(propconst,k,slip,Cel,eul,nlines,id,R, hardening, pi, dt, tag,epsp,fid)
+part = 8
+call OMP_SET_NUM_THREADS(7)
+!$OMP PARALLEL PRIVATE(propconst,k, tag,epsp,fid)
 !$OMP DO
-do k = -4,part
+do k = -part,part
     
     tag = tag1
 
     epsp = epsp1
     bcond = 1
-    call constexpr(k,2,bryter,bcond,pw1, tag, epsp,propconst,fid)
+    fid = 20
+    call constexpr(k,8,bryter,bcond,pw1, tag, epsp,propconst,fid)
     write(*,*) tag(1,1), tag(2,2) , k
-    call newton(k,2,bryter,bcond,F0,Fp0,S0,pw2,propconst,fid) 
+    fid = 20
+    call newton(k,8,bryter,bcond,F0,Fp0,S0,pw2,propconst,fid) 
 
 
 end do
