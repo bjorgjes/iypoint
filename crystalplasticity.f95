@@ -14,6 +14,7 @@ real(8) , dimension(3,3,nlines)  :: Fp0i,F0i
 real(8),  dimension(nlines,12) :: S0i
 real(8), dimension(5) :: propconst
 character*15 :: filename
+character*18 :: filename2
 bry = 0
 if (bryter == 4) then 
     bry = 1
@@ -29,13 +30,17 @@ else if (bryter == 8) then
 end if
 
 if (bcond == 1) then
-    write(filename,'("Dp_cp_",I2,"_",I2)') fid , k  
-    open(unit=fid+20, file=filename, status='replace')
+    write(filename,'("Dp_cp_",I2,"_",I2,".txt")') fid , k  
+    open(unit=fid+20+k, file=filename, status='replace')
+    write(filename2,'("Dp_cp_ang",I2,"_",I2,".txt")') fid , k   
+        open(unit=fid+60+k, file=filename2, status='replace')
     else   
-    write(filename,'("Dp_cp_",I2,"_",I2)') fid , 99 
-    open(unit=fid+20, file=filename, status='replace')
+    write(filename,'("Dp_cp_",I2,"_",I2,".txt")') fid , 99 
+    open(unit=fid+20+k, file=filename, status='replace')
+    write(filename2,'("Dp_cp_ang",I2,"_",I2,".txt")') fid , 99 
+    open(unit=fid+60+k, file=filename2, status='replace')
  end if
-
+fid = fid+k
 
 
 teller = 0
@@ -80,6 +85,7 @@ if (bry == 5) then
     if (bryter == 4) then 
 
     end if
+    close(unit=fid+60)
     close(unit=fid+20)
 end subroutine newton
 
@@ -201,7 +207,7 @@ Lc = La
 !write(*,*) Lc
 end if   
 
-    gammaskrank = 0.000000001
+    gammaskrank = 0.0
     
 
  
@@ -229,7 +235,7 @@ case (1)
        do h = 1,4
         sigma(h) = Tag(pos1(h),pos2(h))
        end do
-      ! write(*,*) sigma , norm2(La), epsp
+       write(*,*) sigma , norm2(La), epsp
          minl = minloc(sigma, DIM = 1)
          maxl = maxloc(sigma, DIM = 1)
          if (abs(sigma(minl)) < convcriterion .and. abs(sigma(maxl)) < convcriterion) then
@@ -442,11 +448,11 @@ epspi = epsp+norm2(Dp)*sqrt(2./3.)*dt0
         if (bryter == 5) then
             if (gammatot > gammaskrank) then
                 write(8,*) bryter, gammatoti
-                call contract2(La,Dp,dot)
+                dot = contract2(La,Dp)
                 dot = dot/norm2(La)/norm2(Dp)
             write(11,*) Tag(1,3),Tag(1,2), Tag(2,3), Tag(3,3) , dot , acos(dot), gammatot
             
-            gammaskrank = gammaskrank + 0.0000001
+            gammaskrank = gammaskrank + 0.00000001
             !write(8,*) Tag(1,1),Tag(2,2), Dp(1,1)/sqrt(Dp(1,1)**2+Dp(2,2)**2),Dp(2,2)/sqrt(Dp(1,1)**2+Dp(2,2)**2.)
             write(8,*) 'La'
             write(8,*) La/norm2(La)
@@ -460,19 +466,21 @@ epspi = epsp+norm2(Dp)*sqrt(2./3.)*dt0
             write(8,*) Dp2/norm2(Dp2)
             write(8,*) 'Dp:La'
             write(8,*) dot
-            call contract2(Dp,grad,dot)
+            dot =  contract2(Dp,grad)
             write(8,*) 'Dp:Grad'
             write(8,*) dot/norm2(Dp)/norm2(grad)
             write(8,*) 'La:Grad'
-            call contract2(La,grad,dot)
+            dot = contract2(La,grad)
             write(8,*) dot/norm2(La)/norm2(grad)
            
             
-            call contract2(Dp,Dp2,dot)
+            dot = contract2(Dp,Dp2)
             write(8,*) 'Dp:DpY'
             write(8,*) dot/norm2(Dp2)/norm2(Dp)
             write(8,*)
             write(8,*)
+            call hoshfordnormal(tag,grad)
+            write(fid+60,*) acos(contract2(La,Dp)/norm2(La)/norm2(Dp)), acos(contract2(grad,Dp)/norm2(grad)/norm2(Dp)), epsp
 
             write(fid+20,*) Tag(1,1), Tag(2,2), Dp(1,1)  /sqrt(  Dp(1,1)**2+Dp(2,2)**2),Dp(2,2)/sqrt(Dp(1,1)**2+Dp(2,2)**2)
             write(14,*) Tag(1,1), Tag(2,2), Dp2(1,1) /sqrt( Dp2(1,1)**2+Dp2(2,2)**2), Dp2(2,2)/sqrt(Dp2(1,1)**2+Dp2(2,2)**2)
@@ -541,11 +549,11 @@ epspi = epsp+norm2(Dp)*sqrt(2./3.)*dt0
             if (gammatot > gammaskrank) then
                 
                 write(8,*) bryter, gammatoti
-                call contract2(La,Dp,dot)
+                dot = contract2(La,Dp)
                 dot = dot/norm2(La)/norm2(Dp)
             write(11,*) Tag(1,3),Tag(1,2), Tag(2,3), Tag(3,3) , dot , acos(dot), gammatot
           
-            gammaskrank = gammaskrank + 0.000001
+            gammaskrank = gammaskrank + 0.0000001
             !write(8,*) Tag(1,1),Tag(2,2), Dp(1,1)/sqrt(Dp(1,1)**2+Dp(2,2)**2),Dp(2,2)/sqrt(Dp(1,1)**2+Dp(2,2)**2.)
             write(8,*) 'La'
             write(8,*) La/norm2(La)
@@ -559,19 +567,21 @@ epspi = epsp+norm2(Dp)*sqrt(2./3.)*dt0
             write(8,*) Dp2/norm2(Dp2)
             write(8,*) 'Dp:La'
             write(8,*) dot
-            call contract2(Dp,grad,dot)
+            dot = contract2(Dp,grad)
             write(8,*) 'Dp:Grad'
             write(8,*) dot/norm2(Dp)/norm2(grad)
             write(8,*) 'La:Grad'
-            call contract2(La,grad,dot)
+            dot = contract2(La,grad)
             write(8,*) dot/norm2(La)/norm2(grad)
            
             
-            call contract2(Dp,Dp2,dot)
+            dot = contract2(Dp,Dp2)
             write(8,*) 'Dp:DpY'
             write(8,*) dot/norm2(Dp2)/norm2(Dp)
             write(8,*)
             write(8,*)
+            call hoshfordnormal(tag,grad)
+            write(fid+60,*) acos(contract2(La,Dp)/norm2(La)/norm2(Dp)), acos(contract2(grad,Dp)/norm2(grad)/norm2(Dp)), epsp
 
             write(fid+20,*) Tag(1,1), Tag(2,2), Dp(1,1)  /sqrt(  Dp(1,1)**2+Dp(2,2)**2),Dp(2,2)/sqrt(Dp(1,1)**2+Dp(2,2)**2)
             write(14,*) Tag(1,1), Tag(2,2), Dp2(1,1) /sqrt( Dp2(1,1)**2+Dp2(2,2)**2), Dp2(2,2)/sqrt(Dp2(1,1)**2+Dp2(2,2)**2)
@@ -817,6 +827,7 @@ subroutine timestep(Tag, Dp, La, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,S0
         write(*,*) consis
         write(*,*) x
         dt0 = dt0/10
+        stop 12
         cycle fiveten
     end if
     
