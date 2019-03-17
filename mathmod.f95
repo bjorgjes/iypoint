@@ -6,18 +6,18 @@ contains
 !! PERFORMS DOBLE DOT PRODUCT ON TWO 3X3 TENSORS 
 !!
 !!
-    subroutine contract2(T,S,dprod)
+    function contract2(T,S)
         implicit none
     
-        real(8), dimension(3,3), Intent(in) :: T, S
-        real(8), Intent(out) :: dprod
-        dprod = 0
-        dprod = T(1,1)*S(1,1) + T(2,2)*S(2,2) + T(3,3)*S(3,3) + &
+        real(8), dimension(3,3):: T, S
+        real(8) ::  contract2
+        contract2 = 0
+        contract2 = T(1,1)*S(1,1) + T(2,2)*S(2,2) + T(3,3)*S(3,3) + &
                 T(1,2)*S(1,2) + T(2,1)*S(2,1) + T(1,3)*S(1,3) + &
                 T(3,1)*S(3,1) + T(2,3)*S(2,3) + T(3,2)*S(3,2)
         
     return
-    end subroutine contract2
+    end function contract2
 
 
 !! Subroutine which calculate the determinant of a 3x3 matrix
