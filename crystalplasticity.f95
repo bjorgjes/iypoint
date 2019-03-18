@@ -482,7 +482,7 @@ epspi = epsp+norm2(Dp)*sqrt(2./3.)*dt0
             write(8,*)
             write(8,*)
             call hoshfordnormal(tag,grad)
-            write(fid+60,*) acos(contract2(La,Dp)/norm2(La)/norm2(Dp)), acos(contract2(grad,Dp)/norm2(grad)/norm2(Dp)), epsp
+            write(fid+60,*) acos(contract2(La,Dp)/norm2(La)/norm2(Dp))*180/pi, acos(contract2(grad,Dp)/norm2(grad)/norm2(Dp))*180/pi, epsp
 
             write(fid+20,*) Tag(1,1), Tag(2,2), Dp(1,1)/ norm2(La),Dp(2,2)/norm2(La)
             write(14,*) Tag(1,1), Tag(2,2), Dp2(1,1) /sqrt( Dp2(1,1)**2+Dp2(2,2)**2), Dp2(2,2)/sqrt(Dp2(1,1)**2+Dp2(2,2)**2)
@@ -583,7 +583,7 @@ epspi = epsp+norm2(Dp)*sqrt(2./3.)*dt0
             write(8,*)
             write(8,*)
             call hoshfordnormal(tag,grad)
-            write(fid+60,*) acos(contract2(La,Dp)/norm2(La)/norm2(Dp)), acos(contract2(grad,Dp)/norm2(grad)/norm2(Dp)), epsp
+            write(fid+60,*) acos(contract2(La,Dp)/norm2(La)/norm2(Dp))*180/pi, acos(contract2(grad,Dp)/norm2(grad)/norm2(Dp))*180/pi, epsp
 
 
             write(fid+20,*) Tag(1,1), Tag(2,2), Dp(1,1)/norm2(La) ,Dp(2,2)/norm2(La)
