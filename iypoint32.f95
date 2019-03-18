@@ -63,8 +63,8 @@ call newton(k,2,bryter,bcond,F0,Fp0,S0,pw1,propconst,fid)
 write(*,*) tag(1,1), tag(2,2), epsp
 
 bryter = 6
-pw1 = 0.008
-pw2 = 0.006
+pw1 = 0.012
+pw2 = 0.01
 k = -2
 bcond = 1
 !call constexpr(k,8,bryter, bcond,pw1, tag, epsp, propconst,fid)
