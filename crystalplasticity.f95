@@ -15,6 +15,7 @@ real(8),  dimension(nlines,12) :: S0i
 real(8), dimension(5) :: propconst
 character*15 :: filename
 character*18 :: filename2
+character*11 :: utskrift1
 bry = 0
 if (bryter == 4) then 
     bry = 1
@@ -41,7 +42,7 @@ if (bcond == 1) then
     open(unit=fid+60+k, file=filename2, status='replace')
  end if
 fid = fid+k
-
+write(utskrift1,'("start ",I2," cp")') k  
 
 teller = 0
 
@@ -57,9 +58,10 @@ La(1,3) = 0
 La(3,1) = 0
 La(2,3) = 0
 La(3,2) = 0
-
+    write(*,*) utskrift1
     call taylor(La,Tag,bryter,bcond,F0i,Fp0i,S0i,pw,Dp,propconst,fid)
-    write(*,*) Tag(1,1), tag(2,2), k
+    write(utskrift1,'("slutt ",I2," cp")') k  
+    write(*,*) Tag(1,1), tag(2,2), utskrift1
     if (bry == 1) then ! If one want relaxed state. 
         !Performes relaxation
         call taylor(La,Tag,3,bcond,F0i,Fp0i,S0i,pw,Dp,propconst,fid)
@@ -235,7 +237,7 @@ case (1)
        do h = 1,4
         sigma(h) = Tag(pos1(h),pos2(h))
        end do
-       write(*,*) sigma , norm2(La), epsp
+       !write(*,*) sigma , norm2(La), epsp
          minl = minloc(sigma, DIM = 1)
          maxl = maxloc(sigma, DIM = 1)
          if (abs(sigma(minl)) < convcriterion .and. abs(sigma(maxl)) < convcriterion) then
@@ -482,7 +484,7 @@ epspi = epsp+norm2(Dp)*sqrt(2./3.)*dt0
             call hoshfordnormal(tag,grad)
             write(fid+60,*) acos(contract2(La,Dp)/norm2(La)/norm2(Dp)), acos(contract2(grad,Dp)/norm2(grad)/norm2(Dp)), epsp
 
-            write(fid+20,*) Tag(1,1), Tag(2,2), Dp(1,1)  /sqrt(  Dp(1,1)**2+Dp(2,2)**2),Dp(2,2)/sqrt(Dp(1,1)**2+Dp(2,2)**2)
+            write(fid+20,*) Tag(1,1), Tag(2,2), Dp(1,1)/ norm2(La),Dp(2,2)/norm2(La)
             write(14,*) Tag(1,1), Tag(2,2), Dp2(1,1) /sqrt( Dp2(1,1)**2+Dp2(2,2)**2), Dp2(2,2)/sqrt(Dp2(1,1)**2+Dp2(2,2)**2)
             write(16,*) Tag(1,1), Tag(2,2), Grad(1,1)/sqrt(Grad(1,1)**2+Grad(2,2)**2),Grad(2,2)/sqrt(Grad(1,1)**2+Grad(2,2)**2)
             
@@ -583,7 +585,8 @@ epspi = epsp+norm2(Dp)*sqrt(2./3.)*dt0
             call hoshfordnormal(tag,grad)
             write(fid+60,*) acos(contract2(La,Dp)/norm2(La)/norm2(Dp)), acos(contract2(grad,Dp)/norm2(grad)/norm2(Dp)), epsp
 
-            write(fid+20,*) Tag(1,1), Tag(2,2), Dp(1,1)  /sqrt(  Dp(1,1)**2+Dp(2,2)**2),Dp(2,2)/sqrt(Dp(1,1)**2+Dp(2,2)**2)
+
+            write(fid+20,*) Tag(1,1), Tag(2,2), Dp(1,1)/norm2(La) ,Dp(2,2)/norm2(La)
             write(14,*) Tag(1,1), Tag(2,2), Dp2(1,1) /sqrt( Dp2(1,1)**2+Dp2(2,2)**2), Dp2(2,2)/sqrt(Dp2(1,1)**2+Dp2(2,2)**2)
             write(16,*) Tag(1,1), Tag(2,2), Grad(1,1)/sqrt(Grad(1,1)**2+Grad(2,2)**2),Grad(2,2)/sqrt(Grad(1,1)**2+Grad(2,2)**2)
             write(3,*) tag(1,1) , gammatot

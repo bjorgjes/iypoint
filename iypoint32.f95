@@ -59,16 +59,16 @@ pw1 = 0.002
 bryter = 5
 bcond = 2
 call constexpr(k,2,bryter,bcond,pw1, tag, epsp,propconst,fid)
-call newton(k,2,bryter,bcond,F0,Fp0,S0,pw1,propconst,fid) 
-!write(*,*) tag(1,1), tag(2,2), epsp
+!call newton(k,2,bryter,bcond,F0,Fp0,S0,pw1,propconst,fid) 
+write(*,*) tag(1,1), tag(2,2), epsp
 
 bryter = 6
 pw1 = 0.008
 pw2 = 0.006
-k = 1
+k = -2
 bcond = 1
-!call constexpr(k,4,bryter, bcond,pw1, tag, epsp, propconst,fid)
-!call newton(k,4,bryter,bcond,F0,Fp0,S0,pw2,propconst,fid)   
+!call constexpr(k,8,bryter, bcond,pw1, tag, epsp, propconst,fid)
+!call newton(k,8,bryter,bcond,F0,Fp0,S0,pw2,propconst,fid)   
 
 tag1 = tag
 epsp1 = epsp
@@ -76,21 +76,23 @@ epsp1 = epsp
 F01 = F0
 Fp01 = Fp0
 S01 = S0
-part = 8
+part = 4
 call OMP_SET_NUM_THREADS(7)
 !$OMP PARALLEL PRIVATE(propconst,k, tag,epsp,fid)
 !$OMP DO
-do k = -part,part
+do k = -5,8
     
     tag = tag1
 
     epsp = epsp1
     bcond = 1
     fid = 20
-    call constexpr(k,8,bryter,bcond,pw1, tag, epsp,propconst,fid)
+    write(*,*) 'start'
+    write(*,*) k
+    call constexpr(k,16,bryter,bcond,pw1, tag, epsp,propconst,fid)
     write(*,*) tag(1,1), tag(2,2) , k
     fid = 20
-    call newton(k,8,bryter,bcond,F0,Fp0,S0,pw2,propconst,fid) 
+    call newton(k,16,bryter,bcond,F0,Fp0,S0,pw2,propconst,fid) 
 
 
 end do
@@ -388,6 +390,7 @@ end subroutine Yoshidamodel
   
         call eqvstress(tag,sigma)
         
+        Call hoshfordnormal(tag,N)
         
     
    
@@ -405,7 +408,7 @@ end subroutine Yoshidamodel
             end do
         end do
     end do
-
+    
     !write(*,*) epsp, abs(sigma0 - sigma)
     if (consistent .eqv. .false.) then
     !call eqvstresslse.(tag,sigma)
@@ -422,27 +425,40 @@ end subroutine Yoshidamodel
                 end do
             end do
         end do
+
+        if (contract2(dtag,N) < 0 ) then
+            stop 'Unloading'
+        !write(*,*) 'Unloading'
+        end if 
         tagcheck = tag+dtag*dt0
+        !write(*,*) sigma-sigma0, sigma , sigma0
     call eqvstress(tagcheck,sigmacheck)
-    if (sigmacheck > sigma0) then
+    if (sigmacheck > sigma0 ) then
         consistency = abs(sigmacheck - sigma0)
         dt1 = dt0
        
         do while (consistency > 0.000000000001) 
         !do i = 1,20
-  
             tagcheck = tag+dtag*dt1
+            !write(*,*) tagcheck - tag
             call eqvstress(tagcheck,sigmacheck)
             consistency = abs(sigmacheck - sigma0)
-         
+           
             
             dt1 = (sigma0-sigma)/(sigmacheck-sigma)*dt1
             
-        
+           ! write(*,*) dt1, sigma, sigmacheck, sigma0
+            if (sigmacheck < sigma0) then
+            tag = tagcheck
+            sigma = sigmacheck
+            end if
         end do
         tag = tagcheck
         sigma = sigmacheck
         consistent = .true.
+        !write(*,*) consistency
+   
+
     else
         tag = tagcheck
     end if 
@@ -499,6 +515,7 @@ else
             alpha = (1-c1*sqrt(sigma0/G))*((pi/2-theta)/(pi/2-theta0))
         else if ( theta >= pi/2 .and. theta < pi ) then
             alpha = 0
+            write(*,*) 'Warning unloading'
         end if   
         !write(*,*) alpha
         !Calculate outer product of CN and NC
@@ -543,6 +560,11 @@ else
             end do
         end do
     end do
+    if (contract2(dtag,N) < 0 ) then
+        write(*,*) 'unloading' 
+        write(*,*) theta*180/pi
+    !    stop 'Unloading'
+    end if 
     tag = tag+dtag*dt0
 end if 
    ! call eqvstress(tag,sigma)
@@ -583,7 +605,7 @@ end if
         secit = 0
         pos1 = (/1, 1, 2, 3, 2/)
         pos2 =(/2, 3, 3, 3, 2/)
-        dl = 0.00001
+        dl = 0.0000001
         switch = 0
         consistent = .false.
         consistentcontroll = .false.
@@ -612,6 +634,7 @@ end if
             La(3,1) = 0
             La(2,3) = 0
             La(3,2) = 0
+          !  consistentcontroll = .true.
     case(2) 
         La(1,1) = 1/sqrt(1.0+propconst(5)**2)
         La(2,2) = propconst(5)**2/sqrt(1.0+propconst(5)**2)
@@ -643,8 +666,8 @@ case (1)
        do h = 1,4
         sigma(h) = Tagi(pos1(h),pos2(h))
        end do
-  
-       !write(*,*) tagi(1,1), tagi(2,2),epspi, consistent, consistentcontroll
+       call sleep(1)
+       write(*,*) sigma ,epspi, consistent, consistentcontroll
          minl = minloc(sigma, DIM = 1)
          maxl = maxloc(sigma, DIM = 1)
          
@@ -813,9 +836,9 @@ if (bryter == 1 .or. bryter == 5 .or. bryter == 4) then
         write(11,*) Tag(1,3), Tag(1,2), Tag(2,3), Tag(3,3) ,epsp
         call Yoshidamodel(tag,La,Dp)
         call hoshfordnormal(tag,N)
-        write(fid+40+l,*) acos(contract2(La,Dp)/norm2(La)/norm2(Dp)), acos(contract2(N,Dp)/norm2(N)/norm2(Dp)), epsp
+        write(fid+40+l,*) acos(contract2(La,Dp)/norm2(La)/norm2(Dp))*180/pi, acos(contract2(N,Dp)/norm2(N)/norm2(Dp))*180/pi, epsp
 
-        write(fid+l,*) Tag(1,1), Tag(2,2) , Dp(1,1), Dp(2,2) 
+        write(fid+l,*) Tag(1,1), Tag(2,2) , Dp(1,1)/norm2(La), Dp(2,2)/norm2(La) 
         gammaskrank = gammaskrank + 0.0000001
         
         end if
@@ -868,11 +891,11 @@ else if (bryter == 2 .or. bryter == 6) then
         write(11,*) Tag(1,1), tag(2,2), Tag(1,3),Tag(1,2), Tag(2,3), Tag(3,3),  epsp
         call Yoshidamodel(tag,La,Dp)
         call hoshfordnormal(tag,N)
-        write(fid+40+l,*) acos(contract2(La,Dp)/norm2(La)/norm2(Dp)), acos(contract2(N,Dp)/norm2(N)/norm2(Dp)), epsp
+        write(fid+40+l,*) acos(contract2(La,Dp)/norm2(La)/norm2(Dp))*180/pi, acos(contract2(N,Dp)/norm2(N)/norm2(Dp))*180/pi, epsp
 
 
         gammaskrank = gammaskrank + 0.0000001
-        write(fid+l,*) Tag(1,1), Tag(2,2) , Dp(1,1), Dp(2,2) 
+        write(fid+l,*) Tag(1,1), Tag(2,2) , Dp(1,1)/norm2(La), Dp(2,2)/norm2(La) 
         !write(8,*) Tag(1,1),Tag(2,2), Dp(1,1)/sqrt(Dp(1,1)**2+Dp(2,2)**2),Dp(2,2)/sqrt(Dp(1,1)**2+Dp(2,2)**2.)
         
         end if

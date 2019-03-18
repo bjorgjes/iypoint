@@ -187,15 +187,16 @@ subroutine eulang(R,phi1,Phi,phi2)
         I2 = (F**2+G**2+H**2)/3. + ((A-C)**2+(C-B)**2+(B-A)**2)/54.
         I3 = ((C-B)*(A-C)*(B-A))/54 + F*G*H - ((C-B)*F**2+(A-C)*G**2+(B-A)*H**2)/6
         if (I3/I2**(3./2.) > 1 ) then
-            !write(*,*) I3/I2**(3./2.)
+            write(*,*) I3/I2**(3./2.)
             theta = 0
         else if ( I3/I2**(3./2.) < -1 ) then
-            !write(*,*) I3/I2**(3./2.)
+            write(*,*) I3/I2**(3./2.)
             theta = pi
         else
         theta = acos(I3/I2**(3./2.))
         end if
-        
+        !write(*,*) theta
+
         sum = (2*cos((2*theta+pi)/6.))**(m)+((2*cos((2*theta -  3*pi)/6.)))**(m)  &
             + (-2*cos((2*theta +  5*pi)/6.))**(m)
             sFi = (3*I2)**(m/2.)*sum    
