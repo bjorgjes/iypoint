@@ -30,12 +30,12 @@ else if (bryter == 8) then
     bry = 5
 end if
 
-if (bcond == 1) then
+if (bcond == 1 .and. bryter == 5 .or. bryter == 6) then
     write(filename,'("Dp_cp_",I2,"_",I2,".txt")') fid , k  
     open(unit=fid+20+k, file=filename, status='replace')
     write(filename2,'("Dp_cp_ang",I2,"_",I2,".txt")') fid , k   
         open(unit=fid+60+k, file=filename2, status='replace')
-    else   
+    else if (bcond == 2 .and. bryter == 5 .or. bryter == 6)  then 
     write(filename,'("Dp_cp_",I2,"_",I2,".txt")') fid , 99 
     open(unit=fid+20+k, file=filename, status='replace')
     write(filename2,'("Dp_cp_ang",I2,"_",I2,".txt")') fid , 99 
@@ -75,7 +75,7 @@ if (bry == 2) then
     write(3,*) Tag(1,1), Tag(2,2), k
     !write(11,*) Tag(1,1), Tag(2,2)
     write(*,*) Tag(1,1), Tag(2,2), k
-    bryter = 5
+    bryter = 7
 end if 
 if (bry == 5) then
     bryter = 6
@@ -499,6 +499,9 @@ epspi = epsp+norm2(Dp)*sqrt(2./3.)*dt0
             F0i  = F0
             S0i = S0   
             call Yoshidamodel(Tag,La,Dp2)
+          
+            write(13,*) Dp
+            write(13,*) La
          
            ! call hoshfordnormal(tag,grad)
            ! call contract2(Dp,grad,dot)
@@ -550,7 +553,12 @@ epspi = epsp+norm2(Dp)*sqrt(2./3.)*dt0
         epsp = epspi
         if (bryter == 6) then
             if (gammatot > gammaskrank) then
-                
+                if (gammaskrank == 0)  then
+                    write(13,*) Dp
+                    write(13,*) La
+                end if
+
+
                 write(8,*) bryter, gammatoti
                 dot = contract2(La,Dp)
                 dot = dot/norm2(La)/norm2(Dp)

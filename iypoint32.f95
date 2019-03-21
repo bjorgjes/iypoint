@@ -4,7 +4,7 @@ use crystalplasticity
 
 integer :: part,bryter, k, i,bcond, fid, allocatestatus
 real(8) :: t1,t2,omp_get_wtime,pw1,pw2,epsp,epsp1
-real(8) , dimension(3,3) :: tag, tag1
+real(8) , dimension(3,3) :: tag, tag1, N
 real(8) , dimension(5) :: propconst
 !real(8) , dimension(:,:), Allocatable ::eul
 real(8) , dimension(:,:,:), Allocatable  :: F0,F01,Fp0,Fp01
@@ -13,8 +13,8 @@ t1 = omp_get_wtime()
 open(unit=11,file="result.txt",status='replace')
 open(unit=3,file="Stress.txt",status='replace')
 open(unit=8,file="eulerangles.txt",status='replace')
-!open(unit=13,file="Dp_cp.txt",status='replace')
-!open(unit=18,file="Dp_con.txt",status='replace')
+open(unit=13,file="Dp_cp.txt",status='replace')
+open(unit=18,file="Dp_con.txt",status='replace')
 open(unit=14,file="Dp2_cp.txt",status='replace')
 open(unit=16,file="Grad_cp.txt",status='replace')
 open(unit=4,file="hardeningrate.txt",status='replace')
@@ -42,7 +42,20 @@ if (allocatestatus /= 0) stop "Not enough memory"
 !!!     
 
 epsp1 = 0
+pw1 = 0.012
+fid = 30
+propconst = (/0.0, 0.0, 0.0, 0.0, 0.5/)
+bcond = 1
+bryter = 7
 
+!!$OMP PARALLEL PRIVATE(k,fid)
+!!$OMP DO
+!do k = 0,20
+!    fid = 30
+!call  newton(k,10,bryter,bcond,F0,Fp0,S0,pw1,propconst,fid) 
+!end do
+!!$OMP END DO NOWAIT
+!!$OMP END PARALLEL
     
 k = 3
     
@@ -63,12 +76,12 @@ call newton(k,2,bryter,bcond,F0,Fp0,S0,pw1,propconst,fid)
 write(*,*) tag(1,1), tag(2,2), epsp
 
 bryter = 6
-pw1 = 0.012
-pw2 = 0.01
-k = -2
+pw1 = 0.0025
+pw2 = 0.0005
+k = 10
 bcond = 1
-!call constexpr(k,8,bryter, bcond,pw1, tag, epsp, propconst,fid)
-!call newton(k,8,bryter,bcond,F0,Fp0,S0,pw2,propconst,fid)   
+!call constexpr(k,16,bryter, bcond,pw1, tag, epsp, propconst,fid)
+!call newton(k,16,bryter,bcond,F0,Fp0,S0,pw2,propconst,fid)   
 
 tag1 = tag
 epsp1 = epsp
@@ -77,10 +90,10 @@ F01 = F0
 Fp01 = Fp0
 S01 = S0
 part = 4
-call OMP_SET_NUM_THREADS(7)
+call OMP_SET_NUM_THREADS(2)
 !$OMP PARALLEL PRIVATE(propconst,k, tag,epsp,fid)
 !$OMP DO
-do k = -5,8
+do k = -3,9
     
     tag = tag1
 
@@ -92,7 +105,8 @@ do k = -5,8
     call constexpr(k,16,bryter,bcond,pw1, tag, epsp,propconst,fid)
     write(*,*) tag(1,1), tag(2,2) , k
     fid = 20
-    call newton(k,16,bryter,bcond,F0,Fp0,S0,pw2,propconst,fid) 
+    call newton(k,16,bryter,bcond,F0,Fp0,S0,pw2,propconst,fid) !
+
 
 
 end do
@@ -600,7 +614,7 @@ end if
         logical :: consistent, consistentcontroll
         character*16 :: filename
         character*19 :: filename2
-        gammaskrank = 0
+        gammaskrank = 0.0
         pwpercision = 0.0000000001
         secit = 0
         pos1 = (/1, 1, 2, 3, 2/)
@@ -845,6 +859,9 @@ if (bryter == 1 .or. bryter == 5 .or. bryter == 4) then
     end if 
 
     if (abs((epsp -strain)/strain) <= pwpercision) then
+        call Yoshidamodel(tag,La,Dp)
+        write(18,*) Dp
+        write(18,*) La
        exit iter
     end if
 
@@ -887,7 +904,11 @@ else if (bryter == 2 .or. bryter == 6) then
     if (bryter == 6) then
         if (epsp > gammaskrank) then
             write(8,*) bryter, epspi
-            
+         if (gammaskrank == 0 ) then
+            call Yoshidamodel(tag,La,Dp)
+            write(18,*) Dp
+            write(18,*) La
+         end if
         write(11,*) Tag(1,1), tag(2,2), Tag(1,3),Tag(1,2), Tag(2,3), Tag(3,3),  epsp
         call Yoshidamodel(tag,La,Dp)
         call hoshfordnormal(tag,N)
