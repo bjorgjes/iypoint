@@ -59,7 +59,7 @@ bryter = 7
     
 k = 3
     
-    propconst = (/0.0, 0.0, 0.0, 0.0, 1.0/)
+    propconst = (/0.0, 0.0, 0.0, 0.0, 1.1/)
     bryter = 5
     tag = 0
     epsp = 0
