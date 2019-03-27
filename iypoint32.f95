@@ -59,12 +59,12 @@ bryter = 7
     
 k = 3
     
-    propconst = (/0.0, 0.0, 0.0, 0.0, 0.5/)
+    propconst = (/0.0, 0.0, 0.0, 0.0, 1.0/)
     bryter = 5
     tag = 0
     epsp = 0
 
-fid = 20
+fid = 27
     !propconst = (/0.0, 0.0, 0.0, 0.0, 0.1*k/)
 Tag = 0
 epsp = 0
@@ -76,8 +76,9 @@ call newton(k,2,bryter,bcond,F0,Fp0,S0,pw1,propconst,fid)
 write(*,*) tag(1,1), tag(2,2), epsp
 
 bryter = 6
-pw1 = 0.0025
-pw2 = 0.0005
+dt = 0.00001
+pw1 = 0.0022
+pw2 = 0.0002
 k = 10
 bcond = 1
 !call constexpr(k,16,bryter, bcond,pw1, tag, epsp, propconst,fid)
@@ -93,18 +94,18 @@ part = 4
 call OMP_SET_NUM_THREADS(2)
 !$OMP PARALLEL PRIVATE(propconst,k, tag,epsp,fid)
 !$OMP DO
-do k = -3,9
+do k = 0,9
     
     tag = tag1
 
     epsp = epsp1
     bcond = 1
-    fid = 20
+    fid = 27
     write(*,*) 'start'
     write(*,*) k
     call constexpr(k,16,bryter,bcond,pw1, tag, epsp,propconst,fid)
     write(*,*) tag(1,1), tag(2,2) , k
-    fid = 20
+    fid = 27
     call newton(k,16,bryter,bcond,F0,Fp0,S0,pw2,propconst,fid) !
 
 
@@ -574,9 +575,9 @@ else
             end do
         end do
     end do
-    if (contract2(dtag,N) < 0 ) then
+    if (contract2(dtag,N) < -1e-9 ) then
         write(*,*) 'unloading' 
-        write(*,*) theta*180/pi
+        write(*,*) contract2(dtag,N)
     !    stop 'Unloading'
     end if 
     tag = tag+dtag*dt0
@@ -667,7 +668,10 @@ iter: do while (switch < 100000)
 
 
 Select case (bcond)
+
 case (1)    
+    consistent = .true.
+consistentcontroll = .true.
 !!! Iteration to ensure boundary condition is satisfied at througout all timesteps. 
     nit = 0   
     boundarycond: do  while (nit < 100)  
@@ -861,7 +865,7 @@ if (bryter == 1 .or. bryter == 5 .or. bryter == 4) then
     if (abs((epsp -strain)/strain) <= pwpercision) then
         call Yoshidamodel(tag,La,Dp)
         write(18,*) Dp
-        write(18,*) La
+        write(18,*) La-id*(La(1,1)+La(2,2)+La(3,3))/3
        exit iter
     end if
 
@@ -907,7 +911,7 @@ else if (bryter == 2 .or. bryter == 6) then
          if (gammaskrank == 0 ) then
             call Yoshidamodel(tag,La,Dp)
             write(18,*) Dp
-            write(18,*) La
+            write(18,*) La-id*(La(1,1)+La(2,2)+La(3,3))/3
          end if
         write(11,*) Tag(1,1), tag(2,2), Tag(1,3),Tag(1,2), Tag(2,3), Tag(3,3),  epsp
         call Yoshidamodel(tag,La,Dp)

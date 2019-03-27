@@ -20,8 +20,8 @@ module global
     integer :: i
     real(8) :: phi1, Phi, phi2
         pi = 4.D0*DATAN(1.D0)
-        dt = 0.00001
-        hardening = .true.
+        dt = 0.0001
+        hardening = .false.
         
     !Create identity matrix
     id = 0
@@ -265,7 +265,11 @@ function gaveps(epsp)
     sigma0 = 48.07971246
     n = 0.645430868
     eps0 =  0.016142686
+    if (hardening) then
     gaveps = sigma0*(1+epsp/eps0)**n
+    else if (.not. hardening) then 
+        gaveps = sigma0
+    end if
     return
 end function gaveps
 
@@ -275,7 +279,11 @@ function haveps(epsp)
     sigma0 = 48.07971246
     n = 0.645430868
     eps0 =  0.016142686
+    if (hardening) then
     haveps = n*sigma0*(1+epsp/eps0)**(n-1)/eps0
+    else if (.not. hardening) then
+        haveps = 0
+    end if 
     return
 end function haveps
 

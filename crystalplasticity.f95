@@ -498,10 +498,10 @@ epspi = epsp+norm2(Dp)*sqrt(2./3.)*dt0
             Fp0i = Fp0
             F0i  = F0
             S0i = S0   
-            call Yoshidamodel(Tag,La,Dp2)
+            !call Yoshidamodel(Tag,La,Dp2)
           
             write(13,*) Dp
-            write(13,*) La
+            write(13,*) La-id*(La(1,1)+La(2,2)+La(3,3))/3
          
            ! call hoshfordnormal(tag,grad)
            ! call contract2(Dp,grad,dot)
@@ -555,7 +555,7 @@ epspi = epsp+norm2(Dp)*sqrt(2./3.)*dt0
             if (gammatot > gammaskrank) then
                 if (gammaskrank == 0)  then
                     write(13,*) Dp
-                    write(13,*) La
+                    write(13,*) La-id*(La(1,1)+La(2,2)+La(3,3))/3
                 end if
 
 
