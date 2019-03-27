@@ -29,6 +29,17 @@ clean:
 	rm module.o mathmod.o crystalplasticity.o
 	rm Dp_*
 
+git:
+	git add module.f95
+	git add crystalplasticity.f95
+	git add mathmod.f95
+	git add iypoint32.f95
+	git add Makefile
+	@read -p "Enter commit message:" messag; \
+	git commit -m "$$messag"
+	git push
+
+
 
 #iypoint32: iypoint32.f95 module.f95
 #	gfortran mathmod.f95 module.f95 iypoint32.f95 -o iypoint32 -lblas -llapack -O3 -fopenmp -fcheck=bounds	-finit-real=zero
