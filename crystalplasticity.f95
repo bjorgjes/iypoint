@@ -101,7 +101,7 @@ subroutine taylor(La,Tag,bryter,bcond,F0i,Fp0i,S0i,pw,Dp,propconst,fid)
  
     real(8) :: phi1, Phi, phi2,dt0, gammatot,pw,gammatoti,gammaskrank,dot, dl,epsp
     real(8) , dimension(3,3)  :: grad,T0 , Dp, Lb, Tagb, La0,Dp2, Lc, tagcc
-                        
+    real(8), dimension(3,3,3,3) :: Cep                    
     real(8) , dimension(3,3) :: La
     real(8) , dimension(3,3), intent(out)  :: Tag
     real(8) , dimension(3,3,nlines) ::  F0, F02, Fp0, Fp02, Fp0i,Fp0int,F0i,F0int, Tagc, Tagcint
@@ -232,12 +232,12 @@ case (1)
     nit = 0   
     boundarycond: do  while (nit < 25)  
     
-       call timestep(Tag, Dp, La, gammatot, gammatoti, Fp0, Fp0int, F0, F0int,S0in,s0,dt0)
+       call timestep(Tag, Dp, La, gammatot, gammatoti, Fp0, Fp0int, F0, F0int,S0in,s0,dt0,Cep)
        
        do h = 1,4
         sigma(h) = Tag(pos1(h),pos2(h))
        end do
-       !write(*,*) sigma , norm2(La), epsp
+       write(*,*) sigma , norm2(La), epsp
          minl = minloc(sigma, DIM = 1)
          maxl = maxloc(sigma, DIM = 1)
          if (abs(sigma(minl)) < convcriterion .and. abs(sigma(maxl)) < convcriterion) then
@@ -247,8 +247,8 @@ case (1)
 
          end if 
 !!!!!! Calculate Jacobian matrix in order to satisfy boundary condition
-       do k = 1,4
-            do p = 1,4
+       do p = 1,4
+            
             select case(centraldiff)
             case(2)
                 Lb = La
@@ -259,7 +259,7 @@ case (1)
                 Lb(pos1(p),pos2(p)) = La(pos1(p),pos2(p)) + dl 
                 end if
 
-                call timestep(Tagb, Dp, Lb, gammatot, gammatoti, Fp0, Fp0int, F0, F0int,S0in,s0,dt0)
+                call timestep(Tagb, Dp, Lb, gammatot, gammatoti, Fp0, Fp0int, F0, F0int,S0in,s0,dt0,Cep)
                 Lb = La
                 if (pos1(p) /= pos2(p)) then
                 Lb(pos1(p),pos2(p)) = La(pos1(p),pos2(p)) - dl
@@ -268,8 +268,11 @@ case (1)
                 Lb(pos1(p),pos2(p)) = La(pos1(p),pos2(p)) - dl 
                 end if
 
-                call timestep(Tagcc, Dp, Lb, gammatot, gammatoti, Fp0, Fp0int, F0, F0int,S0in,s0,dt0)
-            jacob(k,p) = (Tagb(pos1(k),pos2(k))-Tagcc(pos1(k),pos2(k)))/dl/2
+                call timestep(Tagcc, Dp, Lb, gammatot, gammatoti, Fp0, Fp0int, F0, F0int,S0in,s0,dt0,Cep)
+            
+                do k = 1,4
+                jacob(k,p) = (Tagb(pos1(k),pos2(k))-Tagcc(pos1(k),pos2(k)))/dl/2
+                end do
             case(1)
                 Lb = La
                 if (pos1(p) /= pos2(p)) then
@@ -279,10 +282,11 @@ case (1)
                 Lb(pos1(p),pos2(p)) = La(pos1(p),pos2(p)) + dl 
                 end if
 
-                call timestep(Tagb, Dp, Lb, gammatot, gammatoti, Fp0, Fp0int, F0, F0int,S0in,s0,dt0)
+                call timestep(Tagb, Dp, Lb, gammatot, gammatoti, Fp0, Fp0int, F0, F0int,S0in,s0,dt0,Cep)
+                do k = 1,4
                 jacob(k,p) = (Tagb(pos1(k),pos2(k))-Tag(pos1(k),pos2(k)))/dl
+                end do
             end select
-            end do
         end do
     
         Jinv = jacob
@@ -317,7 +321,7 @@ case (2)
    epspi = epsp
   
     
-    call timestep(Tag, Dp, Lc, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,S0in,s0,dt0)
+    call timestep(Tag, Dp, Lc, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,S0in,s0,dt0,Cep)
    
     do h = 1,5
         sigma2(h) = Tag(pos1(h),pos2(h))-propconst(h)*Tag(1,1)
@@ -325,7 +329,7 @@ case (2)
     
    
     normsigma = norm2(sigma2)
-    !write(*,*)  sigma2 , epsp+norm2(Dp)*sqrt(2./3.)*dt0, epsp, norm2(Lc)
+    write(*,*)  sigma2 , epsp+norm2(Dp)*sqrt(2./3.)*dt0, epsp, norm2(Lc)
     !write(*,*)  sigma2 , norm2(Lc), epsp
   ! write(*,*) tag
    
@@ -335,8 +339,8 @@ case (2)
             exit boundary2
          end if 
      
-         do k = 1,5
-            do p = 1,5
+         do p = 1,5
+            
             select case (centraldiff)
             case(2)
                 Lb = Lc
@@ -347,7 +351,7 @@ case (2)
                 Lb(pos1(p),pos2(p)) = Lc(pos1(p),pos2(p)) + dl 
                 end if
 
-                call timestep(Tagb, Dp, Lb, gammatot, gammatoti, Fp0, Fp0int, F0, F0int,S0in,s0,dt0)
+                call timestep(Tagb, Dp, Lb, gammatot, gammatoti, Fp0, Fp0int, F0, F0int,S0in,s0,dt0,Cep)
                 Lb = Lc
                 if (pos1(p) /= pos2(p)) then
                 Lb(pos1(p),pos2(p)) = Lc(pos1(p),pos2(p)) - dl
@@ -356,9 +360,10 @@ case (2)
                 Lb(pos1(p),pos2(p)) = Lc(pos1(p),pos2(p)) - dl 
                 end if
 
-                call timestep(Tagcc, Dp, Lb, gammatot, gammatoti, Fp0, Fp0int, F0, F0int,S0in,s0,dt0)
+                call timestep(Tagcc, Dp, Lb, gammatot, gammatoti, Fp0, Fp0int, F0, F0int,S0in,s0,dt0,Cep)
+                do k = 1,5
             jacob2(k,p) = ((Tagb(pos1(k),pos2(k)) - propconst(k)*Tagb(1,1)) - (Tagcc(pos1(k),pos2(k))-propconst(k)*Tagcc(1,1)))/dl/2
-               
+                end do
             case(1)
                 
                 Lb = Lc
@@ -369,11 +374,13 @@ case (2)
                 Lb(pos1(p),pos2(p)) = Lc(pos1(p),pos2(p)) + dl 
                 end if
 
-                call timestep(Tagb, Dp, Lb, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,S0in,s0,dt0)
+                call timestep(Tagb, Dp, Lb, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,S0in,s0,dt0,Cep)
+                do k = 1,5
                 jacob2(k,p) = ((Tagb(pos1(k),pos2(k))-propconst(k)*Tagb(1,1))-(Tag(pos1(k),pos2(k))-propconst(k)*tag(1,1)))/dl
+                end do
             end select
             end do
-        end do
+        
         Jinv2 = jacob2
         offdl2 = -sigma2
      
@@ -400,7 +407,7 @@ case (2)
    end do boundary2
 
 case (3)
-    call timestep(Tag, Dp, La, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,S0in,s0,dt0)
+    call timestep(Tag, Dp, La, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,S0in,s0,dt0,Cep)
     write(*,*) Tag(1,1), Tag(2,2), epsp+norm2(Dp)*sqrt(2./3.)*dt0
 end select
  
@@ -447,6 +454,7 @@ epspi = epsp+norm2(Dp)*sqrt(2./3.)*dt0
         gammatot = gammatoti 
         La = Lc
         epsp = epspi
+        write(4,*) Cep(1,2,1,2)/75000, epsp
         if (bryter == 5) then
             if (gammatot > gammaskrank) then
                 write(8,*) bryter, gammatoti
@@ -454,8 +462,9 @@ epspi = epsp+norm2(Dp)*sqrt(2./3.)*dt0
                 dot = dot/norm2(La)/norm2(Dp)
             write(11,*) Tag(1,3),Tag(1,2), Tag(2,3), Tag(3,3) , dot , acos(dot), gammatot
             
-            gammaskrank = gammaskrank + 0.00000001
+            gammaskrank = gammaskrank + 0.000000001
             !write(8,*) Tag(1,1),Tag(2,2), Dp(1,1)/sqrt(Dp(1,1)**2+Dp(2,2)**2),Dp(2,2)/sqrt(Dp(1,1)**2+Dp(2,2)**2.)
+            write(4,*) Cep(1,2,1,2)/75000, epsp
             write(8,*) 'La'
             write(8,*) La/norm2(La)
             call hoshfordnormal(tag,grad)
@@ -564,7 +573,7 @@ epspi = epsp+norm2(Dp)*sqrt(2./3.)*dt0
                 dot = dot/norm2(La)/norm2(Dp)
             write(11,*) Tag(1,3),Tag(1,2), Tag(2,3), Tag(3,3) , dot , acos(dot), gammatot
           
-            gammaskrank = gammaskrank + 0.0000001
+            gammaskrank = gammaskrank + 0.000000001
             !write(8,*) Tag(1,1),Tag(2,2), Dp(1,1)/sqrt(Dp(1,1)**2+Dp(2,2)**2),Dp(2,2)/sqrt(Dp(1,1)**2+Dp(2,2)**2.)
             write(8,*) 'La'
             write(8,*) La/norm2(La)
@@ -631,7 +640,7 @@ epspi = epsp+norm2(Dp)*sqrt(2./3.)*dt0
        
         do i = 1,10
             
-            call timestep(Tag, Dp, -La, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,S0in,s0,dt0)
+            call timestep(Tag, Dp, -La, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,S0in,s0,dt0,Cep)
             
             !if (sum(abs(x)) == 0) then 
             F0 = F0int
@@ -658,7 +667,7 @@ epspi = epsp+norm2(Dp)*sqrt(2./3.)*dt0
 
 
 
-subroutine timestep(Tag, Dp, La, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,S0in,s0,dt0)
+subroutine timestep(Tag, Dp, La, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,S0in,s0,dt0,Cep)
     implicit none
     
     !Declear all variables
@@ -681,7 +690,8 @@ subroutine timestep(Tag, Dp, La, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,S0
     double precision, dimension(12):: x
     real(8), intent(in) :: gammatot
     real(8), intent(out) :: gammatoti
-    
+    real(8), dimension(3,3,3,3) :: Cepag ,Cep 
+    Cep = 0
     Tag = 0
     Dp = 0
     Tagcint = 0
@@ -706,8 +716,8 @@ subroutine timestep(Tag, Dp, La, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,S0
     
     !Step 2, calculate trial stress
     
-    call voigt(Etr,Ttr) !Calculate C[Etr]=Ttr
-    
+    !call voigt(Etr,Ttr) !Calculate C[Etr]=Ttr
+    Ttr = voigt(Etr)
     !Step 3 and 4, Calcualte resolved shear stress on each slip system and detrermine potentially active slip systems (P.A)
   
 
@@ -768,7 +778,8 @@ subroutine timestep(Tag, Dp, La, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,S0
         if (Active(i)) then 
             call slipsys(Schmid,m,n,i)
             CS = matmul(Ctr,Schmid)
-            call voigt((CS + transpose(CS))/2,Tint)
+            !call voigt((CS + transpose(CS))/2,Tint)
+            Tint = voigt((CS + transpose(CS))/2)
         Tst = Tst-Tint*tautr(i)/abs(tautr(i))*x(countera)
         countera = countera+1
         end if 
@@ -834,7 +845,7 @@ subroutine timestep(Tag, Dp, La, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,S0
     end do
     
     end if 
-    
+    call elastoplasticmoduli(Cepag,T1,Active,tautr,s0,Lc(1:3,1:3,j),transpose(R(1:3,1:3,j)))
     if (cons > 0.0000001) then
         write(*,*) 'timestep to large, consistency not achieved 1'
         write(*,*) consis
@@ -879,6 +890,7 @@ subroutine timestep(Tag, Dp, La, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,S0
     s0in(j,1:12) = s1
     Tagcint(1:3,1:3,j) = matmul(transpose(R(1:3,1:3,j)),matmul(T1,R(1:3,1:3,j)))
     Tag = Tag+Tagcint(1:3,1:3,j)/nlines
+    Cep = Cep +Cepag/nlines
     
 end do grains 
 
@@ -1063,6 +1075,7 @@ subroutine elasticconstant(Chook, mu)
        real(8),  dimension(nlines,12) :: S0,S0i
        real(8) , dimension(6,6)              :: Chook
        integer :: n, i
+       real(8), dimension(3,3,3,3) :: Cep
        
                La(1,1) = 1.
                La(2,2) = -1./2.
@@ -1096,7 +1109,7 @@ subroutine elasticconstant(Chook, mu)
                gammatoti = 0   
                n = 1
                dt0 = 0.00001
-               call timestep(Tag, Dp, La, gammatot, gammatoti , Fp0, Fp0i, F0, F0i,S0i,s0,dt0)
+               call timestep(Tag, Dp, La, gammatot, gammatoti , Fp0, Fp0i, F0, F0i,S0i,s0,dt0,Cep)
                F = id + La*dt0
                E = 1./2.*(matmul(transpose(F),F)-id)
                mu =  1./2.*(tag(3,3)-tag(1,1))/(E(3,3)-E(1,1))
@@ -1115,11 +1128,13 @@ subroutine elasticconstant(Chook, mu)
 end subroutine Elasticconstant
 
 
-   subroutine pseudoinv(PA,tautr,s0,Ctr,Aplus)    !Calculates the slip increments
+   subroutine pseudoinv(PA,tautr,s0,Aplus,D)    !Calculates the slip increments
+    
+    use global
     implicit none
     
     real(8) ::  coeffA, switch, sgn,h 
-    real(8) , dimension(3,3) :: Ctr
+    real(8) , dimension(3,3) :: Ctr, D,Salpha,Sbeta
     real(8) , dimension(12) :: tautr, s0
     logical, dimension(12) :: PA
     double precision, dimension(12,12) :: A, U, VT, Eps, Aplus, Atest, Adisp, Eps1
@@ -1127,13 +1142,14 @@ end subroutine Elasticconstant
     double precision, dimension(12):: x,b,Sing,test
     double precision, dimension(:), allocatable:: WORK
     integer :: minpos,teller
+    real(8) , dimension(3) :: m,n
 
- lda = 12
- sw = 0
+    lda = 12
+    sw = 0
     LWMAX = 1000
-Allocate(WORK(LWMAX))
-switch = -1
-teller = 1
+    Allocate(WORK(LWMAX))
+    switch = -1
+    teller = 1
 ! The process must be repeated until all calculated slip increments are positive
 outer: do
     A = 0
@@ -1151,14 +1167,15 @@ outer: do
   
 
 !Allocate size of matrices used for SVD 
-sizeA = COUNT(PA)
-
-
+sizeA = 12
 
 countera = 1   ! Counter used to index the position of each element of A
 do i = 1,12
     if (PA(i) ) then
-        b(countera) = abs(tautr(i))-s0(i)
+        Call slipsys(Salpha,m,n,i)
+       
+        Salpha = (Salpha+transpose(Salpha))/2
+        b(i) = tautr(i)/abs(tautr(i))*contract2(Salpha,voigt(D))
         counterb = 1
         do j = 1,12
             if (PA(j) )then
@@ -1168,12 +1185,10 @@ do i = 1,12
                 else
                 h = 0
                 end if    
+                Call slipsys(Sbeta,m,n,j)
+                Sbeta = (Sbeta+transpose(Sbeta))/2
                 
-                call Acoeff(i,j,Ctr,coeffA)
-               
-                sgn = tautr(i)*tautr(j)/abs(tautr(i)*tautr(j))
-                
-                A(countera,counterb) = sgn*coeffA+h
+                A(i,j) = tautr(i)*tautr(j)/abs(tautr(i)*tautr(j))*contract2(Salpha,voigt(Sbeta)) + h
                 counterb = counterb+1
             end if 
         end do
@@ -1206,47 +1221,53 @@ end do
 !write(7,*) INFO
 
 
-Aplus = matmul(transpose(VT),matmul(Eps,transpose(U)))   !pseudoinverse
+Aplus = matmul(transpose(VT),matmul(Eps,transpose(U))) 
+!write(*,*) Aplus
+!pseudoinverse
 !Loop through the calculated deltagammas in order to remove the negative ones from the logical array PA
 minpos = minloc(x, DIM=1)
 countera = 1
-do i = 1,12
-    if (countera == sizeA+1) then
-        exit
-    else if (PA(i) .and. x(countera) <= 0 .and. countera == minpos) then
-        PA(i) = .FALSE.
-        countera = countera+1
-    else if (PA(i)) then
-        countera =countera+1
-    end if
-end do
+!do i = 1,12
+!    if (countera == sizeA+1) then
+!        exit
+!    else if (PA(i) .and. x(countera) <= 0 .and. countera == minpos) then
+!        PA(i) = .FALSE.
+!        countera = countera+1
+!    else if (PA(i)) then
+!        countera =countera+1
+!    end if
+!end do
 
-
+!write(*,*) Aplus(1,1:12)
 
 !Criterion to determine final set of active slip systems, if all deltagamma > 0 the iteration is ended
-if (count(x(1:sizeA) <= 0 ) == 0) then
-    switch = 1
+!if (count(x(1:sizeA) <= 0 ) == 0) then
+ !   switch = 1
    
     exit outer
-end if
+!end if
 end do outer
 
 return
 end subroutine pseudoinv
 
 
-subroutine elastoplasticmoduli(Cep,tag,Active,tautr,s0,Ctr)
+subroutine elastoplasticmoduli(Cepag,tag,Active,tautr,s0,D,R)
+
     implicit none
 
 
-    real(8), dimension(3,3,3,3) :: Cep,Cel4, dyadic
-    real(8), dimension(3,3) :: P,W,tag, CP, schmid_a,schmid_b,Ctr,Leftdy,PC
-    integer :: i,j,k,l,t,q,coeff,countera,counterb
-    logical, dimension(12) :: Active
+    real(8), dimension(3,3,3,3) :: Cep, Cel4, dyadic, Cepag
+    real(8), dimension(3,3) :: CP, schmid_a,PC,Palpha,Walpha,Pbeta,Wbeta
+    integer :: i,j,k,l,t,q,countera,counterb,o,p,s
+    logical, dimension(12), intent(in) :: Active
     real(8), dimension(3) :: m,n
     real(8), dimension(12,12) :: Aplus
-    real(8), dimension(12) :: s0, tautr
-
+    real(8), dimension(12), intent(in) :: s0, tautr
+    real(8), dimension(3,3), intent(in) :: tag, D, R
+  
+Cepag = 0
+Cel4 = 0
     do i = 1,3
         Cel4(i,i,i,i) = Cel(1,1)
         do j = 1,3
@@ -1255,73 +1276,87 @@ subroutine elastoplasticmoduli(Cep,tag,Active,tautr,s0,Ctr)
         end do
     end do
 
-    Do i = 1,3
-    do j = 1,3
-        do l = 1,3
-            do k = 1,3
-                CP(i,j) = CP(i,j)+Cel4(i,j,l,k)*P(k,l)
-            end do
-        end do
-    end do
-end do
-        
+    
+        Cep = Cel4
 
 
-    call pseudoinv(Active, tautr,s0,Ctr, Aplus)
+    call pseudoinv(Active, tautr,s0, Aplus,D)
+   
     countera = 1 
     do t = 1,12
 
     
     if (Active(t) .eqv. .true.) then  
         
+            
+        
             call slipsys(Schmid_a,m,n,t)
-            P = 1./2.*(Schmid_a+transpose(schmid_a))
-            W = 1./2.*(Schmid_a-transpose(schmid_a)) 
-            counterb = 1
+            Palpha = 1./2.*(Schmid_a+transpose(schmid_a))
+            Walpha = 1./2.*(Schmid_a-transpose(schmid_a)) 
+           
             
+           
+           CP = voigt(Palpha)+matmul(Walpha,tag)-matmul(tag,Walpha)
             
+           
+           counterb = 1
+           do o = 1,12 
+            if (Active(o) .eqv. .true.) then  
             ! calculate second order tensor (Ce:P+W_a*Sigma-Sigma*W_a)
-            leftdy = 0
+                call slipsys(Schmid_a,m,n,o)
+                Pbeta = 1./2.*(Schmid_a+transpose(schmid_a))
+                Wbeta = 1./2.*(Schmid_a-transpose(schmid_a)) 
+            
+             PC = 0
 
             Do i = 1,3
-            do j = 1,3
-                do l = 1,3
+                do j = 1,3
+                    do l = 1,3
+                        do k = 1,3
+                            PC(i,j) = PC(i,j)+Cel4(l,k,i,j)*Pbeta(k,l)
+                        end do
+                    end do
+                end do
+             end do
+             dyadic = 0
+            do i = 1,3
+                do j = 1,3
                     do k = 1,3
-                        CP(i,j) = CP(i,j)+Cel4(i,j,l,k)*P(k,l)
+                        do l = 1,3
+                            dyadic(i,j,k,l) =  CP(i,j)*PC(k,l)
+                        end do
                     end do
                 end do
             end do
-             end do
-             write(*,*) CP
-             CP = 0
-            call voigt(P,CP) 
-            write(*,*) CP
-            do i = 1,3
-                do j = 1,3
-                   do k = 1,3
-                     leftdy = leftdy(i,j) + W(i,k)*Tag(k,j)- Tag(i,k)*W(k,j)
-                   end do
-                end do
-            end do
             
-            do q = 1,12
-            if (Active(q)) then
-
-                call slipsys(Schmid_a,m,n,q)
-              P = 1./2.*(Schmid_a+transpose(schmid_a))
-            ! Calculate right hand side of dyadic product (P:Ce)
+          
+            Cep = Cep - tautr(o)*tautr(t)/abs(tautr(t))/abs(tautr(o))*Aplus(t,o)*dyadic
             
-              do i = 1,3
-                do j = 1,3
+            end if 
 
-                end do
-            end do
-            end if
-            end do
-    
-        
-       end if 
+        end do
+    end if
     end do
+    do i = 1,3
+        do j = 1,3
+            do k = 1,3
+                do l = 1,3
+                    do p = 1,3
+                        do q = 1,3
+                            do o = 1,3
+                                do s = 1,3
+                                    Cepag(i,j,k,l) = Cepag(i,j,k,l) + R(p,i)*R(q,j)*R(o,k)*R(s,l)*Cep(p,q,o,s)
+                                end do
+                            end do
+                        end do
+                    end do
+                end do
+            end do
+        end do
+    end do
+
+    
+  
     end subroutine elastoplasticmoduli
 
 end module 

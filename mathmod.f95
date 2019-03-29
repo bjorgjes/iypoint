@@ -176,35 +176,35 @@ end subroutine
 
 !! CONVERTS A SYMETRIC TENSOR INTO A VECTOR
 !!
-subroutine tens2vec(T,v)
+function tens2vec(T)
     implicit none 
-    real(8), intent(in), dimension(3,3) :: T
-    real(8), intent(out), dimension(6) :: v
+    real(8),  dimension(3,3) :: T
+    real(8),  dimension(6) :: tens2vec
 
-    v(1:6) = (/ T(1,1),T(2,2), T(3,3),T(1,2), T(1,3),&
-                T(2,3) /)
+    tens2vec = (/ T(1,1),T(2,2), T(3,3),T(2,3), T(1,3),&
+                T(1,2) /)
 
 return
-end subroutine tens2vec
+end function tens2vec
 
 !! CONVERTS A VECTOR INTO A SYMMETRIC TENSOR
 !!
-subroutine vec2tens(T,v)
+function vec2tens(v)
     implicit none 
-    real(8), intent(out), dimension(3,3) :: T
-    real(8), intent(in), dimension(6) :: v
+    real(8),  dimension(3,3) :: vec2tens
+    real(8), dimension(6) :: v
 
-T(1,1) = v(1)
-T(2,2) = v(2)
-T(3,3) = v(3)
-T(2,3) = v(4)
-T(3,2) = v(4)
-T(1,3) = v(5)
-T(3,1) = v(5)
-T(1,2) = v(6)
-T(2,1) = v(6)
+vec2tens(1,1) = v(1)
+vec2tens(2,2) = v(2)
+vec2tens(3,3) = v(3)
+vec2tens(2,3) = v(4)
+vec2tens(3,2) = v(4)
+vec2tens(1,3) = v(5)
+vec2tens(3,1) = v(5)
+vec2tens(1,2) = v(6)
+vec2tens(2,1) = v(6)
 
 return
-end subroutine vec2tens
+end function vec2tens
 
 end module mathmod

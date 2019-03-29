@@ -95,24 +95,24 @@ end subroutine countlin
 
 
 !Subrotuine which multiply tensor A with the 4th order elasticity tensor, following Voigt notation,  and returns the resulting tensor
-subroutine voigt(A,B)
+function voigt(A)
         real(8) , dimension(6) :: vec
-        real(8) , dimension(3,3), intent(in) :: A
-        real(8) , dimension(3,3), intent(out) :: B
+        real(8) , dimension(3,3) :: A
+        real(8) , dimension(3,3) :: voigt
         
         vec = matmul(Cel,(/A(1,1), A(2,2),A(3,3), 2*A(2,3),2*A(1,3),2*A(1,2)/))
         
     
-        B(1,1) = vec(1)
-        B(2,2) = vec(2)
-        B(3,3) = vec(3)
-        B(1,2) = vec(6)
-        B(2,1) = vec(6)
-        B(1,3) = vec(5)
-        B(3,1) = vec(5)
-        B(3,2) = vec(4)
-        B(2,3) = vec(4)
-end subroutine voigt
+        voigt(1,1) = vec(1)
+        voigt(2,2) = vec(2)
+        voigt(3,3) = vec(3)
+        voigt(1,2) = vec(6)
+        voigt(2,1) = vec(6)
+        voigt(1,3) = vec(5)
+        voigt(3,1) = vec(5)
+        voigt(3,2) = vec(4)
+        voigt(2,3) = vec(4)
+end function voigt
 
 
 !!! Calculate the von Mises equivalent stress given a cauchy stress tensor T
@@ -162,8 +162,8 @@ subroutine eulang(R,phi1,Phi,phi2)
         Call slipsys(Sbeta,m,n,beta)
         csv = matmul(Ctr,Sbeta)
         csv = (csv+transpose(csv))/2
-        call voigt(csv,rm)
-    tot = matmul(transpose(Salpha),rm)
+        !call voigt(csv,rm)
+    tot = matmul(transpose(Salpha),voigt(csv))
     coeff = tot(1,1)+tot(2,2)+tot(3,3)
     return
     end subroutine Acoeff
