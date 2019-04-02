@@ -230,14 +230,15 @@ Select case (bcond)
 case (1)    
 !!! Iteration to ensure boundary condition is satisfied at througout all timesteps. 
     nit = 0   
+    Lc = La
     boundarycond: do  while (nit < 25)  
     
-       call timestep(Tag, Dp, La, gammatot, gammatoti, Fp0, Fp0int, F0, F0int,S0in,s0,dt0,Cep)
+       call timestep(Tag, Dp, Lc, gammatot, gammatoti, Fp0, Fp0int, F0, F0int,S0in,s0,dt0,Cep)
        
        do h = 1,4
         sigma(h) = Tag(pos1(h),pos2(h))
        end do
-       write(*,*) sigma , norm2(La), epsp
+       write(*,*) sigma , norm2(Lc), epsp
          minl = minloc(sigma, DIM = 1)
          maxl = maxloc(sigma, DIM = 1)
          if (abs(sigma(minl)) < convcriterion .and. abs(sigma(maxl)) < convcriterion) then
@@ -251,21 +252,21 @@ case (1)
             
             select case(centraldiff)
             case(2)
-                Lb = La
+                Lb = Lc
                 if (pos1(p) /= pos2(p)) then
-                Lb(pos1(p),pos2(p)) = La(pos1(p),pos2(p)) + dl
-                Lb(pos2(p),pos1(p)) = La(pos2(p),pos1(p)) + dl
+                Lb(pos1(p),pos2(p)) = Lc(pos1(p),pos2(p)) + dl
+                Lb(pos2(p),pos1(p)) = Lc(pos2(p),pos1(p)) + dl
                 else if (pos1(p) == pos2(p)) then
-                Lb(pos1(p),pos2(p)) = La(pos1(p),pos2(p)) + dl 
+                Lb(pos1(p),pos2(p)) = Lc(pos1(p),pos2(p)) + dl 
                 end if
 
                 call timestep(Tagb, Dp, Lb, gammatot, gammatoti, Fp0, Fp0int, F0, F0int,S0in,s0,dt0,Cep)
-                Lb = La
+                Lb = Lc
                 if (pos1(p) /= pos2(p)) then
-                Lb(pos1(p),pos2(p)) = La(pos1(p),pos2(p)) - dl
-                Lb(pos2(p),pos1(p)) = La(pos2(p),pos1(p)) - dl
+                Lb(pos1(p),pos2(p)) = Lc(pos1(p),pos2(p)) - dl
+                Lb(pos2(p),pos1(p)) = Lc(pos2(p),pos1(p)) - dl
                 else if (pos1(p) == pos2(p)) then
-                Lb(pos1(p),pos2(p)) = La(pos1(p),pos2(p)) - dl 
+                Lb(pos1(p),pos2(p)) = Lc(pos1(p),pos2(p)) - dl 
                 end if
 
                 call timestep(Tagcc, Dp, Lb, gammatot, gammatoti, Fp0, Fp0int, F0, F0int,S0in,s0,dt0,Cep)
@@ -274,12 +275,12 @@ case (1)
                 jacob(k,p) = (Tagb(pos1(k),pos2(k))-Tagcc(pos1(k),pos2(k)))/dl/2
                 end do
             case(1)
-                Lb = La
+                Lb = Lc
                 if (pos1(p) /= pos2(p)) then
-                Lb(pos1(p),pos2(p)) = La(pos1(p),pos2(p)) + dl
-                Lb(pos2(p),pos1(p)) = La(pos2(p),pos1(p)) + dl
+                Lb(pos1(p),pos2(p)) = Lc(pos1(p),pos2(p)) + dl
+                Lb(pos2(p),pos1(p)) = Lc(pos2(p),pos1(p)) + dl
                 else if (pos1(p) == pos2(p)) then
-                Lb(pos1(p),pos2(p)) = La(pos1(p),pos2(p)) + dl 
+                Lb(pos1(p),pos2(p)) = Lc(pos1(p),pos2(p)) + dl 
                 end if
 
                 call timestep(Tagb, Dp, Lb, gammatot, gammatoti, Fp0, Fp0int, F0, F0int,S0in,s0,dt0,Cep)
@@ -293,13 +294,13 @@ case (1)
         offdl = -sigma
 
         call dgesv(LDA,NRHS,Jinv,LDA,IPIV,offdl,lda , Info)
-        La(1,2) = La(1,2) + offdl(1)
-        La(2,1) = La(2,1) + offdl(1)
-        La(1,3) = La(1,3) + offdl(2)
-        La(3,1) = La(3,1) + offdl(2)
-        La(2,3) = La(2,3) + offdl(3)
-        La(3,2) = La(3,2) + offdl(3)
-        La(3,3) = La(3,3) + offdl(4)
+        Lc(1,2) = Lc(1,2) + offdl(1)
+        Lc(2,1) = Lc(2,1) + offdl(1)
+        Lc(1,3) = Lc(1,3) + offdl(2)
+        Lc(3,1) = Lc(3,1) + offdl(2)
+        Lc(2,3) = Lc(2,3) + offdl(3)
+        Lc(3,2) = Lc(3,2) + offdl(3)
+        Lc(3,3) = Lc(3,3) + offdl(4)
         
         minl = minloc(sigma, DIM = 1)
         maxl = maxloc(sigma, DIM = 1)
@@ -329,7 +330,7 @@ case (2)
     
    
     normsigma = norm2(sigma2)
-    write(*,*)  sigma2 , epsp+norm2(Dp)*sqrt(2./3.)*dt0, epsp, norm2(Lc)
+    !write(*,*)  sigma2 , epsp+norm2(Dp)*sqrt(2./3.)*dt0, epsp, norm2(Lc)
     !write(*,*)  sigma2 , norm2(Lc), epsp
   ! write(*,*) tag
    

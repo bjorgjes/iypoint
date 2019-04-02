@@ -64,13 +64,14 @@ k = 3
     tag = 0
     epsp = 0
 
-fid = 28
+fid = 33
     !propconst = (/0.0, 0.0, 0.0, 0.0, 0.1*k/)
 Tag = 0
 epsp = 0
-pw1 = 0.02
+pw1 = 1
 bryter = 5
-bcond = 2
+k = 0
+bcond = 1
 call constexpr(k,2,bryter,bcond,pw1, tag, epsp,propconst,fid)
 call newton(k,2,bryter,bcond,F0,Fp0,S0,pw1,propconst,fid) 
 write(*,*) tag(1,1), tag(2,2), epsp
@@ -674,8 +675,8 @@ iter: do while (switch < 100000)
 Select case (bcond)
 
 case (1)    
-    consistent = .true.
-consistentcontroll = .true.
+  !  consistent = .true.
+!consistentcontroll = .true.
 !!! Iteration to ensure boundary condition is satisfied at througout all timesteps. 
     nit = 0   
     boundarycond: do  while (nit < 100)  
