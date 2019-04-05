@@ -64,25 +64,25 @@ k = 3
     tag = 0
     epsp = 0
 
-fid = 33
+fid = 38
     !propconst = (/0.0, 0.0, 0.0, 0.0, 0.1*k/)
 Tag = 0
 epsp = 0
-pw1 = 1
+pw1 = 0.2
 bryter = 5
 k = 0
-bcond = 1
+bcond = 2
 call constexpr(k,2,bryter,bcond,pw1, tag, epsp,propconst,fid)
-call newton(k,2,bryter,bcond,F0,Fp0,S0,pw1,propconst,fid) 
+!call newton(k,2,bryter,bcond,F0,Fp0,S0,pw1,propconst,fid) 
 write(*,*) tag(1,1), tag(2,2), epsp
 
 bryter = 6
-
-pw1 = 0.10
-pw2 = 0.08
-k = 5
+fid = 38
+pw1 = 1.0
+pw2 = 0.8
+k = 4
 bcond = 1
-!call constexpr(k,16,bryter, bcond,pw1, tag, epsp, propconst,fid)
+call constexpr(k,16,bryter, bcond,pw1, tag, epsp, propconst,fid)
 !call newton(k,16,bryter,bcond,F0,Fp0,S0,pw2,propconst,fid)   
 
 tag1 = tag
@@ -92,7 +92,7 @@ F01 = F0
 Fp01 = Fp0
 S01 = S0
 part = 4
-call OMP_SET_NUM_THREADS(2)
+call OMP_SET_NUM_THREADS(7)
 !$OMP PARALLEL PRIVATE(propconst,k, tag,epsp,fid)
 !$OMP DO
 do k = 0,9
@@ -104,10 +104,10 @@ do k = 0,9
     fid = 28
     !write(*,*) 'start'
     !write(*,*) k
-    !call constexpr(k,16,bryter,bcond,pw1, tag, epsp,propconst,fid)
+    call constexpr(k,16,bryter,bcond,pw1, tag, epsp,propconst,fid)
     write(*,*) tag(1,1), tag(2,2) , k
     fid = 28
-   ! call newton(k,16,bryter,bcond,F0,Fp0,S0,pw2,propconst,fid) !
+    call newton(k,16,bryter,bcond,F0,Fp0,S0,pw2,propconst,fid) !
 
 
 
@@ -689,14 +689,15 @@ case (1)
        do h = 1,4
         sigma(h) = Tagi(pos1(h),pos2(h))
        end do
-       call sleep(1)
+       !call sleep(1)
        !write(*,*) sigma ,epspi, consistent, consistentcontroll
          minl = minloc(sigma, DIM = 1)
          maxl = maxloc(sigma, DIM = 1)
          
          if (abs(sigma(minl)) < 0.00000000001 .and. abs(sigma(maxl)) < 0.00000000001) then
             consistentcontroll = consistent
-           ! write(*,*) sigma(4) , Tagi(1,1), Tagi(2,2), epspi
+            
+            !write(*,*) sigma , Tagi(1,1), Tagi(2,2), epspi
             exit boundarycond
          end if 
 !!!!!! Calculate Jacobian matrix in order to satisfy boundary condition
@@ -911,7 +912,7 @@ else if (bryter == 2 .or. bryter == 6) then
 
     tag = tagi
     epsp = epspi 
-    !write(*,*) epsp
+    ! write(*,*) epsp
 
     if (bryter == 6) then
         if (epsp > gammaskrank) then
@@ -1102,7 +1103,7 @@ subroutine yoshi2(tag,D,epsp,dt0,consistent)
           
           dt1 = (sigma0-sigma)/(sigmacheck-sigma)*dt1
           
-         write(*,*) dt1, sigma, sigmacheck, sigma0
+         !write(*,*) dt1, sigma, sigmacheck, sigma0
           if (sigmacheck < sigma0) then
           tag = tagcheck
           sigma = sigmacheck
@@ -1120,7 +1121,8 @@ subroutine yoshi2(tag,D,epsp,dt0,consistent)
   
   !write(*,*) sigmacheck - sigma0
 else
-!function Dp(sigma)
+!function Dp(sigma
+    q = 0
 !end function
 ! Initial guess, elastic predictor
     newtvec = 1
@@ -1305,6 +1307,14 @@ solution = -newtvec
     tag1 = tag1+vec2tens(solution(1:6))
     lambdadot = lambdadot+solution(7)
 !write(*,*) solution
+    if (q > 10) then
+        write(*,*) newtvec
+    end if
+    if (q > 15 .and. norm2(newtvec) < 1e-5) then
+        write(*,*) 'not fully converged solution'
+        exit 
+    end if
+    q = q+1
 end do
 tag = tag1
 epsp = epsp2

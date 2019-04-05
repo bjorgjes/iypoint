@@ -879,7 +879,7 @@ subroutine timestep(Tag, Dp, La, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,S0
         countera = countera+1
         end if 
     end do
-    Dpc =  matmul(transpose(Rtest),matmul(Dpc,Rtest))
+    Dpc =  matmul(Rtest,matmul(Dpc,transpose(Rtest)))
     Dp = Dp + matmul(transpose(R(1:3,1:3,j)),matmul(Dpc,R(1:3,1:3,j)))
     
     gammatoti = gammatoti + sum(x)/nlines
