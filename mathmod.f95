@@ -207,4 +207,16 @@ vec2tens(2,1) = v(6)
 return
 end function vec2tens
 
+function macauley(h)
+    implicit none
+    real(8) :: h, macauley
+
+    if (h < 0) then
+       macauley = 0
+    else if (h >= 0) then
+        macauley = h
+    end if 
+        Return
+end function macauley
+
 end module mathmod

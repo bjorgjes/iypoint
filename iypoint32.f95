@@ -1017,12 +1017,13 @@ end subroutine
 
 subroutine yoshi2(tag,D,epsp,dt0,consistent)
     use crystalplasticity
+    use mathmod
       implicit none
 
       real(8), dimension(3,3,3,3) :: Cep, dyadic, T, CT,Cel4
       real(8), dimension(3,3) :: N, D, tag, dtag,Nnorm, Dtan, tagint, Ddev, tagcheck,tag1
-      real(8) :: h ,h2, G,NCN, theta, c1= 0.3, theta0, alpha, sigma, sigma0, dt0, epsp, lambdadot, lambdadot2
-      real(8) :: feps,feps2 , sigmacheck, dt1,epsp2, consistency, dl 
+      real(8) :: h ,h2, G,NCN, theta, alpha, sigma, sigma0, dt0, epsp, lambdadot, lambdadot2
+      real(8) :: feps,feps2 , sigmacheck, dt1,epsp2, consistency, dl ,modelnum
       real(8) , dimension(6,6) :: Chook
       integer :: i,j,k,l,p,q,Info
       logical :: consistent
@@ -1030,16 +1031,21 @@ subroutine yoshi2(tag,D,epsp,dt0,consistent)
       real(8) , dimension(7) :: newtvec, solution,IPIV
       real(8) , dimension(7,7) :: Jacobi
       integer , dimension(6) :: pos1, pos2
+      real(8) :: c1= 0.3, c2 = 0.5, c3 = 0.4 ,theta0 
 
-      
+      modelnum = 2
         pos1 = (/1, 2, 3, 2, 1, 1/)
         pos2 = (/1, 2, 3, 3, 3, 2/)
       dl = 0.000001
-      theta0 = pi/18.
+     
       sigma0 = gaveps(epsp)
       h = haveps(epsp)
       dtag = 0
-
+if (modelnum == 1) then
+    theta0 = pi/18.
+else if (modelnum == 2) then
+    theta0 = pi/18./2.
+end if 
 
    
       call Elasticconstant(Chook,G)
@@ -1143,9 +1149,13 @@ theta = acos(contract2(D-id*(D(1,1)+D(2,2)+D(3,3))/3.,N)/norm2(D-id*(D(1,1)+D(2,
 
 
 if (theta >= 0 .and. theta <= theta0 ) then
-   alpha = 1-c1*sqrt(sigma0/G)
+        alpha = 1-c1*sqrt(sigma0/G)-c2*macauley(h)/G
 else if (theta > theta0 .and. theta < pi/2) then
-    alpha = (1-c1*sqrt(sigma0/G))*((pi/2-theta)/(pi/2-theta0))
+    if (modelnum == 1) then 
+        alpha = (1-c1*sqrt(sigma0/G)-c2*macauley(h)/G)*((pi/2-theta)/(pi/2-theta0))
+    else if (modelnum == 2) then
+        alpha = (1-c1*sqrt(sigma0/G)-c2*macauley(h)/G)*tan(c3*(theta-theta0)+theta0)/tan(theta)
+    end if
     !alpha = (pi/2-theta)/(pi/2-theta0)
 else if ( theta >= pi/2 .and. theta < pi ) then
     alpha = 0
@@ -1201,15 +1211,19 @@ do i = 1,7
             theta = acos(contract2(D-id*(D(1,1)+D(2,2)+D(3,3))/3.,N)/norm2(D-id*(D(1,1)+D(2,2)+D(3,3))/3.)/Norm2(N))
 
 
-                                if (theta >= 0 .and. theta <= theta0 ) then
-                                alpha = 1-c1*sqrt(sigma0/G)
-                                else if (theta > theta0 .and. theta < pi/2) then
-                                    alpha = (1-c1*sqrt(sigma0/G))*((pi/2-theta)/(pi/2-theta0))
-                                    !alpha = (pi/2-theta)/(pi/2-theta0)
-                                else if ( theta >= pi/2 .and. theta < pi ) then
-                                    alpha = 0
-                                    write(*,*) 'Warning unloading'
-                                end if   
+            if (theta >= 0 .and. theta <= theta0 ) then
+                alpha = 1-c1*sqrt(sigma0/G)-c2*macauley(h)/G
+            else if (theta > theta0 .and. theta < pi/2) then
+                        if (modelnum == 1) then 
+                            alpha = (1-c1*sqrt(sigma0/G)-c2*macauley(h)/G)*((pi/2-theta)/(pi/2-theta0))
+                        else if (modelnum == 2) then
+                            alpha = (1-c1*sqrt(sigma0/G)-c2*macauley(h)/G)*tan(c3*(theta-theta0)+theta0)/tan(theta)
+                        end if
+            else if ( theta >= pi/2 .and. theta < pi ) then
+                        alpha = 0
+                        write(*,*) 'Warning unloading'
+            end if   
+
             Nnorm = N/norm2(N)
                     do p = 1,3
                         do j = 1,3
@@ -1251,15 +1265,21 @@ hvec2 = tens2vec(tagint)-tens2vec(tag) - matmul(Chook,(/Dtan(1,1), Dtan(2,2),Dta
         else 
             Call hoshfordnormal(tag1,N)
             theta = acos(contract2(D-id*(D(1,1)+D(2,2)+D(3,3))/3.,N)/norm2(D-id*(D(1,1)+D(2,2)+D(3,3))/3.)/Norm2(N))
-                            if (theta >= 0 .and. theta <= theta0 ) then
-                            alpha = 1-c1*sqrt(sigma0/G)
-                            else if (theta > theta0 .and. theta < pi/2) then
-                                alpha = (1-c1*sqrt(sigma0/G))*((pi/2-theta)/(pi/2-theta0))
-                                !alpha = (pi/2-theta)/(pi/2-theta0)
-                            else if ( theta >= pi/2 .and. theta < pi ) then
-                                alpha = 0
-                                write(*,*) 'Warning unloading'
-                            end if   
+            
+            if (theta >= 0 .and. theta <= theta0 ) then
+                             alpha = 1-c1*sqrt(sigma0/G)-c2*macauley(h)/G
+            else if (theta > theta0 .and. theta < pi/2) then
+                            if (modelnum == 1) then 
+                                alpha = (1-c1*sqrt(sigma0/G)-c2*macauley(h)/G)*((pi/2-theta)/(pi/2-theta0))
+                            else if (modelnum == 2) then
+                                alpha = (1-c1*sqrt(sigma0/G)-c2*macauley(h)/G)*tan(c3*(theta-theta0)+theta0)/tan(theta)
+                            end if
+            else if ( theta >= pi/2 .and. theta < pi ) then
+                            alpha = 0
+                            write(*,*) 'Warning unloading'
+            end if   
+            
+            
             Nnorm = N/norm2(N)
                     do p = 1,3
                         do j = 1,3
