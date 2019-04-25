@@ -20,7 +20,7 @@ module global
     integer :: i
     real(8) :: phi1, Phi, phi2
         pi = 4.D0*DATAN(1.D0)
-        dt = 0.0001
+        dt = 0.00001
         hardening = .false.
         
     !Create identity matrix

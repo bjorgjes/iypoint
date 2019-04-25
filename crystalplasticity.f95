@@ -117,8 +117,8 @@ subroutine taylor(La,Tag,bryter,bcond,F0i,Fp0i,S0i,pw,Dp,propconst,fid)
     real(8) :: pwpercision, epspi, convcriterion, deltak, normsigma
     
     ! The percision of the plastic work given in relative fraction
-    pwpercision = 0.0000000000001
-    convcriterion = 0.000000000001
+    pwpercision = 0.000000001
+    convcriterion = 0.0000001
     centraldiff = 1
     proximity = 0
     !Timeincrement
@@ -561,6 +561,7 @@ epspi = epsp+norm2(Dp)*sqrt(2./3.)*dt0
         s0 = s0in
         gammatot = gammatoti 
         epsp = epspi
+        La = Lc
         if (bryter == 6) then
             if (gammatot > gammaskrank) then
                 if (gammaskrank == 0)  then
