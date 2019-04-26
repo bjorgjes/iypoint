@@ -72,14 +72,14 @@ pw1 = 0.02
 bryter = 5
 k = 0
 bcond = 2
-call constexpr(k,2,bryter,bcond,pw1, tag, epsp,propconst,fid)
-call newton(k,2,bryter,bcond,F0,Fp0,S0,pw1,propconst,fid) 
+!call constexpr(k,2,bryter,bcond,pw1, tag, epsp,propconst,fid)
+!call newton(k,2,bryter,bcond,F0,Fp0,S0,pw1,propconst,fid) 
 write(*,*) tag(1,1), tag(2,2), epsp
 
 bryter = 6
 fid = fid0
 pw1 = 0.1
-pw2 = 0.08
+pw2 = 0.02
 k = 4
 bcond = 1
 !call constexpr(k,16,bryter, bcond,pw1, tag, epsp, propconst,fid)
@@ -92,10 +92,11 @@ F01 = F0
 Fp01 = Fp0
 S01 = S0
 part = 4
+bryter = 7
 call OMP_SET_NUM_THREADS(7)
 !$OMP PARALLEL PRIVATE(propconst,k, tag,epsp,fid)
 !$OMP DO
-do k = 0,9
+do k = 0,32
     
     tag = tag1
 
@@ -104,7 +105,7 @@ do k = 0,9
     fid = fid0
     !write(*,*) 'start'
     !write(*,*) k
-    call constexpr(k,16,bryter,bcond,pw1, tag, epsp,propconst,fid)
+   ! call constexpr(k,16,bryter,bcond,pw1, tag, epsp,propconst,fid)
     write(*,*) tag(1,1), tag(2,2) , k
     fid = fid0
     call newton(k,16,bryter,bcond,F0,Fp0,S0,pw2,propconst,fid) !
@@ -863,10 +864,11 @@ if (bryter == 1 .or. bryter == 5 .or. bryter == 4) then
         write(11,*) Tag(1,3), Tag(1,2), Tag(2,3), Tag(3,3) ,epsp
         call Yoshidamodel(tag,La,Dp)
         call hoshfordnormal(tag,N)
-        write(fid+40+l,*) acos(contract2(La,Dp)/norm2(La)/norm2(Dp))*180/pi, acos(contract2(N,Dp)/norm2(N)/norm2(Dp))*180/pi, epsp
-
+        
+       write(fid+40+l,*) acos(contract2(La,Dp)/norm2(La)/norm2(Dp))*180/pi, acos(contract2(N,Dp)/norm2(N)/norm2(Dp))*180/pi, epsp
+        !write(fid+40+l,*) acos(contract2(La,N)/norm2(La)/norm2(N))*180/pi, acos(contract2(N,Dp)/norm2(N)/norm2(Dp))*180/pi, epsp
         write(fid+l,*) Tag(1,1), Tag(2,2) , Dp(1,1)/norm2(La), Dp(2,2)/norm2(La) 
-        gammaskrank = gammaskrank + 0.0000001
+        gammaskrank = gammaskrank + 0.000000001
         
         end if
     end if 
@@ -928,7 +930,7 @@ else if (bryter == 2 .or. bryter == 6) then
         write(fid+40+l,*) acos(contract2(La,Dp)/norm2(La)/norm2(Dp))*180/pi, acos(contract2(N,Dp)/norm2(N)/norm2(Dp))*180/pi, epsp
 
 
-        gammaskrank = gammaskrank + 0.0000001
+        gammaskrank = gammaskrank + 0.000000001
         write(fid+l,*) Tag(1,1), Tag(2,2) , Dp(1,1)/norm2(La), Dp(2,2)/norm2(La) 
         !write(8,*) Tag(1,1),Tag(2,2), Dp(1,1)/sqrt(Dp(1,1)**2+Dp(2,2)**2),Dp(2,2)/sqrt(Dp(1,1)**2+Dp(2,2)**2.)
         
@@ -1033,7 +1035,7 @@ subroutine yoshi2(tag,D,epsp,dt0,consistent)
       integer , dimension(6) :: pos1, pos2
       real(8) :: c1= 0.3, c2 = 0.5, c3 = 0.4 ,theta0 
 
-      modelnum = 2
+      modelnum = 1
         pos1 = (/1, 2, 3, 2, 1, 1/)
         pos2 = (/1, 2, 3, 3, 3, 2/)
       dl = 0.000001
@@ -1154,7 +1156,7 @@ else if (theta > theta0 .and. theta < pi/2) then
     if (modelnum == 1) then 
         alpha = (1-c1*sqrt(sigma0/G)-c2*macauley(h)/G)*((pi/2-theta)/(pi/2-theta0))
     else if (modelnum == 2) then
-        alpha = (1-c1*sqrt(sigma0/G)-c2*macauley(h)/G)*tan(c3*(theta-theta0)+theta0)/tan(theta)
+        alpha = (1-c1*sqrt(sigma0/G)-c2*macauley(h)/G)*Tan(c3*(theta-theta0)+theta0)/tan(theta)
     end if
     !alpha = (pi/2-theta)/(pi/2-theta0)
 else if ( theta >= pi/2 .and. theta < pi ) then
