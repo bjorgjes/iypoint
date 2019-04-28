@@ -203,20 +203,14 @@ if (bcond == 2) then
     La(3,3) = -0.35*(La(1,1)+La(2,2))
     La = La/norm2(La)
     Lc = La
-    if ( propconst(6) > 0 .and. abs(propconst(6)) >= abs(propconst(5))) then
+    if ( abs(propconst(6)) >= abs(propconst(5))) then
         pos1 = (/1, 1, 2, 3, 2, 1/)
         pos2 =(/2, 3, 3, 3, 2, 1/)
-    else if ( propconst(6) < 0 .and. abs(propconst(6)) >= abs(propconst(5))) then
-        pos1 = (/1, 1, 2, 3, 2, 1/)
-        pos2 =(/2, 3, 3, 3, 2, 1/)
-    else if ( propconst(5) > 0 .and. abs(propconst(6)) < abs(propconst(5))) then
+        propconst = propconst/propconst(6)
+    else if ( abs(propconst(6)) < abs(propconst(5))) then
         pos1 = (/1, 1, 2, 3, 1, 2/)
         pos2 =(/2, 3, 3, 3, 1, 2/)
-        propconst = (/0.d+1, 0.d+1, 0.d+1, 0.d+1, propconst(6), propconst(5)/)
-    else if ( propconst(5) < 0 .and. abs(propconst(6)) < abs(propconst(5))) then    
-        pos1 = (/1, 1, 2, 3, 1, 2/)
-        pos2 =(/2, 3, 3, 3, 1, 2/)
-        propconst = (/0.d+1, 0.d+1, 0.d+1, 0.d+1, propconst(6), propconst(5)/)
+        propconst = (/0.d+1, 0.d+1, 0.d+1, 0.d+1, propconst(6), propconst(5)/)/propconst(5)
     end if 
 
 end if   
