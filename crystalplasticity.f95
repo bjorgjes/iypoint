@@ -12,7 +12,7 @@ integer  :: bryter
 !real(8), dimension(nlines,3), intent(in) :: eul
 real(8) , dimension(3,3,nlines)  :: Fp0i,F0i
 real(8),  dimension(nlines,12) :: S0i
-real(8), dimension(5) :: propconst
+real(8), dimension(6) :: propconst
 character*15 :: filename
 character*18 :: filename2
 character*11 :: utskrift1
@@ -111,11 +111,11 @@ subroutine taylor(La,Tag,bryter,bcond,F0i,Fp0i,S0i,pw,Dp,propconst,fid)
     real(8) , dimension(4)  :: sigma, offdl
     integer :: LDA = 4,NRHS = 1, Info,  minl, maxl,nit,bcond,centraldiff, proximity
     integer , dimension(4) :: IPIV
-    real(8), dimension(5) :: propconst, offdl2, sigma2, IPIV2
+    real(8), dimension(5) :: offdl2, sigma2, IPIV2
     real(8) , dimension(5,5)  :: Jacob2, Jinv2
-    integer, dimension(5) :: pos1, pos2
+    integer, dimension(6) :: pos1, pos2
     real(8) :: pwpercision, epspi, convcriterion, deltak, normsigma
-    
+    real(8), dimension(6) :: propconst
     ! The percision of the plastic work given in relative fraction
     pwpercision = 0.000000001
     convcriterion = 0.0000001
@@ -123,9 +123,8 @@ subroutine taylor(La,Tag,bryter,bcond,F0i,Fp0i,S0i,pw,Dp,propconst,fid)
     proximity = 0
     !Timeincrement
     !dt0 = 0.0000001
-deltak = 0.5
-    pos1 = (/1, 1, 2, 3, 2/)
-    pos2 =(/2, 3, 3, 3, 2/)
+    deltak = 0.5
+    
     dl = 0.00000001
     La0 = La
     !Define velocity gradient
@@ -136,8 +135,8 @@ deltak = 0.5
         S0 = s0i 
         Fp0 = Fp0i  
         F0 = F0i  
+    
         
-        !propconst = (/0.0, 0.0, 0.0, 0.0, 0.0/)
         
     
  
@@ -192,9 +191,8 @@ else if (bryter == 3 ) then
     write(*,*) bryter
     end if 
 if (bcond == 2) then
-    !La(1,1) = 1/sqrt(1.0+propconst(5)**2)
-    La(1,1) = 1
-    !La(2,2) = propconst(5)/sqrt(1.0+propconst(5)**2)
+    
+    La(1,1) = propconst(6)
     La(1,2) = 0
     La(2,2) = propconst(5)
     La(2,1) = 0
@@ -203,10 +201,24 @@ if (bcond == 2) then
     La(2,3) = 0
     La(3,2) = 0
     La(3,3) = -0.35*(La(1,1)+La(2,2))
-   ! write(*,*) La
-La = La/norm2(La)
-Lc = La
-!write(*,*) Lc
+    La = La/norm2(La)
+    Lc = La
+    if ( propconst(6) > 0 .and. abs(propconst(6)) >= abs(propconst(5))) then
+        pos1 = (/1, 1, 2, 3, 2, 1/)
+        pos2 =(/2, 3, 3, 3, 2, 1/)
+    else if ( propconst(6) < 0 .and. abs(propconst(6)) >= abs(propconst(5))) then
+        pos1 = (/1, 1, 2, 3, 2, 1/)
+        pos2 =(/2, 3, 3, 3, 2, 1/)
+    else if ( propconst(5) > 0 .and. abs(propconst(6)) < abs(propconst(5))) then
+        pos1 = (/1, 1, 2, 3, 1, 2/)
+        pos2 =(/2, 3, 3, 3, 1, 2/)
+        propconst = (/0.d+1, 0.d+1, 0.d+1, 0.d+1, propconst(6), propconst(5)/)
+    else if ( propconst(5) < 0 .and. abs(propconst(6)) < abs(propconst(5))) then    
+        pos1 = (/1, 1, 2, 3, 1, 2/)
+        pos2 =(/2, 3, 3, 3, 1, 2/)
+        propconst = (/0.d+1, 0.d+1, 0.d+1, 0.d+1, propconst(6), propconst(5)/)
+    end if 
+
 end if   
 
     gammaskrank = 0.0
@@ -312,6 +324,8 @@ case (1)
     end do boundarycond
    
 case (2)
+    
+
     nit = 0
    deltak = 0.5
    tell = 0
@@ -325,13 +339,13 @@ case (2)
     call timestep(Tag, Dp, Lc, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,S0in,s0,dt0,Cep)
    
     do h = 1,5
-        sigma2(h) = Tag(pos1(h),pos2(h))-propconst(h)*Tag(1,1)
+        sigma2(h) = Tag(pos1(h),pos2(h))-propconst(h)*Tag(pos1(6),pos2(6))
     end do
     
    
     normsigma = norm2(sigma2)
     !write(*,*)  sigma2 , epsp+norm2(Dp)*sqrt(2./3.)*dt0, epsp, norm2(Lc)
-    !write(*,*)  sigma2 , norm2(Lc), epsp
+    write(*,*)  sigma2 , norm2(Lc), epsp
   ! write(*,*) tag
    
          minl = minloc(sigma2, DIM = 1)
@@ -363,7 +377,8 @@ case (2)
 
                 call timestep(Tagcc, Dp, Lb, gammatot, gammatoti, Fp0, Fp0int, F0, F0int,S0in,s0,dt0,Cep)
                 do k = 1,5
-            jacob2(k,p) = ((Tagb(pos1(k),pos2(k)) - propconst(k)*Tagb(1,1)) - (Tagcc(pos1(k),pos2(k))-propconst(k)*Tagcc(1,1)))/dl/2
+            jacob2(k,p) = ((Tagb(pos1(k),pos2(k)) - propconst(k)*Tagb(pos1(6),pos2(6))) - &
+             (Tagcc(pos1(k),pos2(k))-propconst(k)*Tagcc(pos1(6),pos2(6))))/dl/2
                 end do
             case(1)
                 
@@ -377,7 +392,8 @@ case (2)
 
                 call timestep(Tagb, Dp, Lb, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,S0in,s0,dt0,Cep)
                 do k = 1,5
-                jacob2(k,p) = ((Tagb(pos1(k),pos2(k))-propconst(k)*Tagb(1,1))-(Tag(pos1(k),pos2(k))-propconst(k)*tag(1,1)))/dl
+                jacob2(k,p) = ((Tagb(pos1(k),pos2(k))-propconst(k)*Tagb(pos1(6),pos2(6)))- &
+                (Tag(pos1(k),pos2(k))-propconst(k)*tag(pos1(6),pos2(6))))/dl
                 end do
             end select
             end do
@@ -385,18 +401,18 @@ case (2)
         Jinv2 = jacob2
         offdl2 = -sigma2
      
-       ! call dgesv(5,1,Jinv2,5,IPIV2,offdl2, 5 , Info)
-       Call eqnsolver(jacob2,Lc,sigma2)
+        call dgesv(5,1,Jinv2,5,IPIV2,offdl2, 5 , Info)
+       !Call eqnsolver(jacob2,Lc,sigma2)
        
        
-        !Lc(1,2) = Lc(1,2) + offdl2(1)
-        !Lc(2,1) = Lc(2,1) + offdl2(1)
-        !Lc(1,3) = Lc(1,3) + offdl2(2)
-        !Lc(3,1) = Lc(3,1) + offdl2(2)
-        !Lc(2,3) = Lc(2,3) + offdl2(3)
-        !Lc(3,2) = Lc(3,2) + offdl2(3)
-        !Lc(3,3) = Lc(3,3) + offdl2(4)
-        !Lc(2,2) = Lc(2,2) + offdl2(5)
+        Lc(1,2) = Lc(1,2) + offdl2(1)
+        Lc(2,1) = Lc(2,1) + offdl2(1)
+        Lc(1,3) = Lc(1,3) + offdl2(2)
+        Lc(3,1) = Lc(3,1) + offdl2(2)
+        Lc(2,3) = Lc(2,3) + offdl2(3)
+        Lc(3,2) = Lc(3,2) + offdl2(3)
+        Lc(3,3) = Lc(3,3) + offdl2(4)
+        Lc(pos1(5),pos2(5)) = Lc(pos1(5),pos2(5)) + offdl2(5)
         
 
 

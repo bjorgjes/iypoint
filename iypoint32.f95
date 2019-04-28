@@ -5,7 +5,7 @@ use crystalplasticity
 integer :: part,bryter, k, i,bcond, fid, allocatestatus, fid0
 real(8) :: t1,t2,omp_get_wtime,pw1,pw2,epsp,epsp1
 real(8) , dimension(3,3) :: tag, tag1, N
-real(8) , dimension(5) :: propconst
+real(8) , dimension(6) :: propconst
 !real(8) , dimension(:,:), Allocatable ::eul
 real(8) , dimension(:,:,:), Allocatable  :: F0,F01,Fp0,Fp01
 real(8),  dimension(:,:), Allocatable :: S0,S01
@@ -44,7 +44,8 @@ if (allocatestatus /= 0) stop "Not enough memory"
 epsp1 = 0
 pw1 = 0.012
 fid0 = 42
-propconst = (/0.0, 0.0, 0.0, 0.0, 0.5/)
+!!propconst = (/0.0, 0.0, 0.0, 0.0, 22, 11/)
+  propconst = (/0.0, 0.0, 0.0, 0.0, 0.5, 1.0/)
 bcond = 1
 bryter = 7
 
@@ -59,21 +60,22 @@ bryter = 7
     
 k = 3
     
-    propconst = (/0.0, 0.0, 0.0, 0.0, 0.5/)
+  !!propconst = (/0.0, 0.0, 0.0, 0.0, 22, 11/)
+    propconst = (/0.0, 0.0, 0.0, 0.0, 1.0, 0.0/)
     bryter = 5
     tag = 0
     epsp = 0
 
 fid = fid0
-    !propconst = (/0.0, 0.0, 0.0, 0.0, 0.1*k/)
+    
 Tag = 0
 epsp = 0
 pw1 = 0.02
-bryter = 5
+bryter = 7
 k = 0
 bcond = 2
 !call constexpr(k,2,bryter,bcond,pw1, tag, epsp,propconst,fid)
-!call newton(k,2,bryter,bcond,F0,Fp0,S0,pw1,propconst,fid) 
+call newton(k,2,bryter,bcond,F0,Fp0,S0,pw1,propconst,fid) 
 write(*,*) tag(1,1), tag(2,2), epsp
 
 bryter = 6
@@ -108,7 +110,7 @@ do k = 0,32
    ! call constexpr(k,16,bryter,bcond,pw1, tag, epsp,propconst,fid)
     write(*,*) tag(1,1), tag(2,2) , k
     fid = fid0
-    call newton(k,16,bryter,bcond,F0,Fp0,S0,pw2,propconst,fid) !
+    !call newton(k,16,bryter,bcond,F0,Fp0,S0,pw2,propconst,fid) !
 
 
 
