@@ -173,7 +173,7 @@ subroutine eulang(R,phi1,Phi,phi2)
         
         implicit none 
         real(8), dimension(3,3), intent(in) :: Tag
-        real(8) :: A, B, C, F, G, H, I2, I3, theta, m = 8.8 ,sum, sFi, sigma
+        real(8) :: A, B, C, F, G, H, I2, I3, theta, m = 9.d+0 ,sum, sFi, sigma
        if (norm2(tag) == 0) then
         sigma = 0
        else 
@@ -262,9 +262,11 @@ subroutine eulang(R,phi1,Phi,phi2)
 function gaveps(epsp)
     implicit none
     real(8) :: sigma0, eps0, n, gaveps, epsp
-    sigma0 = 48.07971246
-    n = 0.645430868
-    eps0 =  0.016142686
+    sigma0 = 49.103558072070918    
+    !n = 0.645430868
+    !eps0 =  0.016142686
+    n = 0.0027724527
+    eps0 = 0.002438999583505
     if (hardening) then
     gaveps = sigma0*(1+epsp/eps0)**n
     else if (.not. hardening) then 
@@ -276,9 +278,12 @@ end function gaveps
 function haveps(epsp)
     implicit none
     real(8) :: sigma0, eps0, n, haveps,epsp
-    sigma0 = 48.07971246
-    n = 0.645430868
-    eps0 =  0.016142686
+    sigma0 = 49.103558072070918    
+    !n = 0.645430868
+    !eps0 =  0.016142686
+    n = 0.0027724527
+    eps0 = 0.002438999583505
+    
     if (hardening) then
     haveps = n*sigma0*(1+epsp/eps0)**(n-1)/eps0
     else if (.not. hardening) then

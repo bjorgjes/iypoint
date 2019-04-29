@@ -61,7 +61,7 @@ bryter = 7
 k = 3
     
   !!propconst = (/0.0, 0.0, 0.0, 0.0, 22, 11/)
-    propconst = (/0.0, 0.0, 0.0, 0.0, 1.0, 0.0/)
+    propconst = (/0.0, 0.0, 0.0, 0.0, 0.5, -0.5/)
     bryter = 5
     tag = 0
     epsp = 0
@@ -227,7 +227,7 @@ subroutine hoshfordnormal(Tag,grad)
     implicit none 
     real(8), dimension(3,3), intent(in) :: Tag
     real(8), dimension(3,3), intent(out) :: grad
-    real(8) :: A, B, C, F, G, H, dI2,dI3, dtheta, I2, I3, theta, m = 8.8 , dsum,sum, sFi, fraction
+    real(8) :: A, B, C, F, G, H, dI2,dI3, dtheta, I2, I3, theta, m = 9.0 , dsum,sum, sFi, fraction
     real(8) , dimension(6,6) :: partials
     integer :: i 
     real(8) , dimension(6) :: n
