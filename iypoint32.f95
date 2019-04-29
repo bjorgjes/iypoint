@@ -46,7 +46,7 @@ pw1 = 0.012
 fid0 = 42
 !!propconst = (/0.0, 0.0, 0.0, 0.0, 22, 11/)
   propconst = (/0.0, 0.0, 0.0, 0.0, 0.5, 1.0/)
-bcond = 1
+
 bryter = 7
 
 !!$OMP PARALLEL PRIVATE(k,fid)
@@ -61,7 +61,7 @@ bryter = 7
 k = 3
     
   !!propconst = (/0.0, 0.0, 0.0, 0.0, 22, 11/)
-    propconst = (/0.0, 0.0, 0.0, 0.0, 0.5, -0.5/)
+    propconst = (/0.0, 0.0, 0.0, 0.0, 0.5, 1.0/)
     bryter = 5
     tag = 0
     epsp = 0
@@ -71,6 +71,9 @@ fid = fid0
 Tag = 0
 epsp = 0
 pw1 = 0.02
+bcond = 2
+call constexpr(k,16,bryter, bcond,pw1, tag, epsp, propconst,fid)
+call newton(k,16,bryter,bcond,F0,Fp0,S0,pw1,propconst,fid)   
 bryter = 7
 k = 0
 bcond = 2
@@ -80,7 +83,7 @@ bryter = 7
 bryter = 6
 fid = fid0
 pw1 = 0.1
-pw2 = 0.02
+pw2 = 0.08
 k = 4
 bcond = 1
 !call constexpr(k,16,bryter, bcond,pw1, tag, epsp, propconst,fid)
@@ -92,31 +95,33 @@ epsp1 = epsp
 F01 = F0
 Fp01 = Fp0
 S01 = S0
-part = 4
-bryter = 7
+part = 300
+bryter = 6
 call OMP_SET_NUM_THREADS(7)
-!$OMP PARALLEL PRIVATE(propconst,k, tag,epsp,fid)
-part = 4
-do k = 0,32
+!$OMP PARALLEL PRIVATE(propconst,k, tag,epsp,fid,bryter)
+!$OMP DO
+do k = 0,9
     
     tag = tag1
 
     epsp = epsp1
     bcond = 1
+    bryter = 6
     fid = fid0
+     !!propconst = (/0.0, 0.0, 0.0, 0.0, 22, 11/)
+    propconst = (/0.d+0, 0.d+0, 0.d+0, 0.d+0, sin(2*pi*k/part), cos(2*pi*k/part)/)
     !write(*,*) 'start'
     !write(*,*) k
-   ! call constexpr(k,16,bryter,bcond,pw1, tag, epsp,propconst,fid)
-    write(*,*) tag(1,1), tag(2,2) , k
+    call constexpr(k,16,bryter,bcond,pw1, tag, epsp,propconst,fid)
+   ! write(*,*) tag(1,1), tag(2,2) , k
     fid = fid0
-    !call newton(k,16,bryter,bcond,F0,Fp0,S0,pw2,propconst,fid) !
+    call newton(k,16,bryter,bcond,F0,Fp0,S0,pw2,propconst,fid) !
 
 
 
 end do
-    write(*,*) tag(1,1), tag(2,2) , k
+!$OMP END DO NOWAIT
 !$OMP END PARALLEL
-
 i = 4
 bcond = 2
 part = 4
@@ -607,11 +612,11 @@ end if
         real(8), dimension(3,3) :: tag, tagi
         real(8) :: epsp, epspi, strain
         real(8) , dimension(4)  :: sigma, offdl
-        real(8), dimension(5) :: propconst, offdl2, sigma2, IPIV2
-        integer, dimension(5) :: pos1, pos2
+        real(8), dimension(5) ::  offdl2, sigma2, IPIV2
+        integer, dimension(6) :: pos1, pos2
         real(8) :: dt0,gammaskrank, dl
         real(8) , dimension(3,3)  :: Lb, Tagb, La, Dp,tagc, N
-        
+        real(8), dimension(6) :: propconst
         integer ::  switch , p,k,h,l, bryter,secit,part
         real(8) , dimension(4,4)  :: Jacob, Jinv
         
@@ -625,8 +630,7 @@ end if
         gammaskrank = 0.0
         pwpercision = 0.0000000001
         secit = 0
-        pos1 = (/1, 1, 2, 3, 2/)
-        pos2 =(/2, 3, 3, 3, 2/)
+        
         dl = 0.0000001
         switch = 0
         consistent = .false.
@@ -657,16 +661,33 @@ end if
             La(2,3) = 0
             La(3,2) = 0
           !  consistentcontroll = .true.
+            pos1 = (/1, 1, 2, 3, 2, 1/)
+                pos2 =(/2, 3, 3, 3, 2, 1/)
     case(2) 
-        La(1,1) = 1/sqrt(1.0+propconst(5)**2)
-        La(2,2) = propconst(5)**2/sqrt(1.0+propconst(5)**2)
-        La(1,2) = 0
-        La(2,1) = 0
-        La(1,3) = 0
-        La(3,1) = 0
-        La(2,3) = 0
-        La(3,2) = 0
-        La(3,3) = -1.0/3.0*(La(1,1)+La(2,2))
+        if (bcond == 2) then
+    
+            La(1,1) = propconst(6)
+            La(1,2) = 0
+            La(2,2) = propconst(5)
+            La(2,1) = 0
+            La(1,3) = 0
+            La(3,1) = 0
+            La(2,3) = 0
+            La(3,2) = 0
+            La(3,3) = -0.35*(La(1,1)+La(2,2))
+            La = La/norm2(La)
+            
+            if ( abs(propconst(6)) >= abs(propconst(5))) then
+                pos1 = (/1, 1, 2, 3, 2, 1/)
+                pos2 =(/2, 3, 3, 3, 2, 1/)
+                propconst = propconst/propconst(6)
+            else if ( abs(propconst(6)) < abs(propconst(5))) then
+                pos1 = (/1, 1, 2, 3, 1, 2/)
+                pos2 =(/2, 3, 3, 3, 1, 2/)
+                propconst = (/0.d+1, 0.d+1, 0.d+1, 0.d+1, propconst(6), propconst(5)/)/propconst(5)
+            end if 
+        
+        end if   
     end select    
     
             dt0 = dt
@@ -764,7 +785,7 @@ case (2)
    !write(*,*) tagi(1,1), tagi(2,2), epspi,consistent, consistentcontroll
 
     do h = 1,5
-        sigma2(h) = Tagi(pos1(h),pos2(h))-propconst(h)*Tagi(1,1)
+        sigma2(h) = Tagi(pos1(h),pos2(h))-propconst(h)*Tagi(pos1(6),pos2(6))
     end do
     !   write(*,*) La
        !write(*,*) epspi
@@ -808,7 +829,8 @@ case (2)
                 !call yoshi2(Tagc,Lb,epspi,dt0,consistent)
                 
                 do k = 1,5
-            jacob2(k,p) = ((Tagb(pos1(k),pos2(k))-propconst(k)*Tagb(1,1))-(Tagi(pos1(k),pos2(k))-propconst(k)*tagi(1,1)))/dl
+            jacob2(k,p) = ((Tagb(pos1(k),pos2(k))-propconst(k)*Tagb(pos1(6),pos2(6)))- &
+            (Tagi(pos1(k),pos2(k))-propconst(k)*tagi(pos1(6),pos2(6))))/dl
                 end do
             end do
     
@@ -823,7 +845,7 @@ case (2)
         La(2,3) = La(2,3) + offdl2(3)
         La(3,2) = La(3,2) + offdl2(3)
         La(3,3) = La(3,3) + offdl2(4)
-        La(2,2) = La(2,2) + offdl2(5)
+        La(pos1(5),pos2(5)) = La(pos1(5),pos2(5)) + offdl2(5)
       
         nit = nit+1
 

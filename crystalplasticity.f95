@@ -190,6 +190,8 @@ else if (bryter == 3 ) then
     end do initalize3
     write(*,*) bryter
     end if 
+    pos1 = (/1, 1, 2, 3, 2, 1/)
+    pos2 =(/2, 3, 3, 3, 2, 1/)
 if (bcond == 2) then
     
     La(1,1) = propconst(6)
