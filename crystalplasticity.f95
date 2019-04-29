@@ -339,7 +339,7 @@ case (2)
    
     normsigma = norm2(sigma2)
     !write(*,*)  sigma2 , epsp+norm2(Dp)*sqrt(2./3.)*dt0, epsp, norm2(Lc)
-    write(*,*)  sigma2 , norm2(Lc), epsp
+    !write(*,*)  sigma2 , norm2(Lc), epsp
   ! write(*,*) tag
    
          minl = minloc(sigma2, DIM = 1)

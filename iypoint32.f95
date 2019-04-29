@@ -61,7 +61,7 @@ bryter = 7
 k = 3
     
   !!propconst = (/0.0, 0.0, 0.0, 0.0, 22, 11/)
-    propconst = (/0.0, 0.0, 0.0, 0.0, 1.0, 0.0/)
+    propconst = (/0.0, 0.0, 0.0, 0.0, 0.0, 1.0/)
     bryter = 5
     tag = 0
     epsp = 0
@@ -70,8 +70,8 @@ fid = fid0
     
 Tag = 0
 epsp = 0
-pw1 = 0.02
-bryter = 7
+pw1 = 1
+bryter = 5
 k = 0
 bcond = 2
 !call constexpr(k,2,bryter,bcond,pw1, tag, epsp,propconst,fid)
@@ -93,22 +93,25 @@ epsp1 = epsp
 F01 = F0
 Fp01 = Fp0
 S01 = S0
-part = 4
+part = 300
 bryter = 7
 call OMP_SET_NUM_THREADS(7)
-!$OMP PARALLEL PRIVATE(propconst,k, tag,epsp,fid)
+!$OMP PARALLEL PRIVATE(propconst,k, tag,epsp,fid,bryter)
 !$OMP DO
-do k = 0,32
+do k = 0,300
     
     tag = tag1
 
     epsp = epsp1
-    bcond = 1
+    bcond = 2
+    bryter = 7
     fid = fid0
+     !!propconst = (/0.0, 0.0, 0.0, 0.0, 22, 11/)
+    propconst = (/0.d+0, 0.d+0, 0.d+0, 0.d+0, sin(2*pi*k/part), cos(2*pi*k/part)/)
     !write(*,*) 'start'
     !write(*,*) k
    ! call constexpr(k,16,bryter,bcond,pw1, tag, epsp,propconst,fid)
-    write(*,*) tag(1,1), tag(2,2) , k
+   ! write(*,*) tag(1,1), tag(2,2) , k
     fid = fid0
     !call newton(k,16,bryter,bcond,F0,Fp0,S0,pw2,propconst,fid) !
 
