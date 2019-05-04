@@ -100,7 +100,7 @@ bryter = 6
 call OMP_SET_NUM_THREADS(7)
 !$OMP PARALLEL PRIVATE(propconst,k, tag,epsp,fid,bryter)
 !$OMP DO
-do k = 0,9
+do k = 0,36
     
     tag = tag1
 
@@ -112,10 +112,10 @@ do k = 0,9
     propconst = (/0.d+0, 0.d+0, 0.d+0, 0.d+0, sin(2*pi*k/part), cos(2*pi*k/part)/)
     !write(*,*) 'start'
     !write(*,*) k
-    call constexpr(k,16,bryter,bcond,pw1, tag, epsp,propconst,fid)
+    call constexpr(k,64,bryter,bcond,pw1, tag, epsp,propconst,fid)
    ! write(*,*) tag(1,1), tag(2,2) , k
     fid = fid0
-    call newton(k,16,bryter,bcond,F0,Fp0,S0,pw2,propconst,fid) !
+    call newton(k,64,bryter,bcond,F0,Fp0,S0,pw2,propconst,fid) !
 
 
 
