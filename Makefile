@@ -38,6 +38,7 @@ git:
 	git add mathmod.f95
 	git add iypoint32.f95
 	git add Makefile
+	git add bjorns_mod.f95
 	@read -p "Enter commit message:" messag; \
 	git commit -m "$$messag"
 	git push
