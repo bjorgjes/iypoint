@@ -32,14 +32,14 @@ end if
 
 if (bcond == 1 .and. bryter == 5 .or. bryter == 6) then
     write(filename,'("Dp_cp_",I2,"_",I2,".txt")') fid , k  
-    open(unit=fid+20+k, file=filename, status='replace')
+    open(unit=fid+200+k, file=filename, status='replace')
     write(filename2,'("Dp_cp_ang",I2,"_",I2,".txt")') fid , k   
-        open(unit=fid+60+k, file=filename2, status='replace')
+        open(unit=fid+400+k, file=filename2, status='replace')
     else if (bcond == 2 .and. bryter == 5 .or. bryter == 6)  then 
     write(filename,'("Dp_cp_",I2,"_",I2,".txt")') fid , 99 
-    open(unit=fid+20+k, file=filename, status='replace')
+    open(unit=fid+200+k, file=filename, status='replace')
     write(filename2,'("Dp_cp_ang",I2,"_",I2,".txt")') fid , 99 
-    open(unit=fid+60+k, file=filename2, status='replace')
+    open(unit=fid+400+k, file=filename2, status='replace')
  end if
 fid = fid+k
 write(utskrift1,'("start ",I2," cp")') k  
@@ -117,15 +117,15 @@ subroutine taylor(La,Tag,bryter,bcond,F0i,Fp0i,S0i,pw,Dp,propconst,fid)
     real(8) :: pwpercision, epspi, convcriterion, deltak, normsigma
     real(8), dimension(6) :: propconst
     ! The percision of the plastic work given in relative fraction
-    pwpercision = 0.000000001
+    pwpercision = 0.00000001
     convcriterion = 0.0000001
-    centraldiff = 1
+    centraldiff = 2
     proximity = 0
     !Timeincrement
     !dt0 = 0.0000001
     deltak = 0.5
     
-    dl = 0.00000001
+    dl = 0.0000001
     La0 = La
     !Define velocity gradient
     !strainrate
@@ -343,10 +343,11 @@ case (2)
     !write(*,*)  sigma2 , epsp+norm2(Dp)*sqrt(2./3.)*dt0, epsp, norm2(Lc)
     !write(*,*)  sigma2 , norm2(Lc), epsp
   ! write(*,*) tag
-   
+    write(*,*)  sigma2 , norm2(Lc), epspi
          minl = minloc(sigma2, DIM = 1)
          maxl = maxloc(sigma2, DIM = 1)
          if (abs(sigma2(minl)) < convcriterion .and. abs(sigma2(maxl)) < convcriterion) then
+            !write(*,*)  sigma2 , norm2(Lc), epspi
             exit boundary2
          end if 
      
@@ -475,7 +476,7 @@ epspi = epsp+norm2(Dp)*sqrt(2./3.)*dt0
                 dot = dot/norm2(La)/norm2(Dp)
             write(11,*) Tag(1,3),Tag(1,2), Tag(2,3), Tag(3,3) , dot , acos(dot), gammatot
             
-            gammaskrank = gammaskrank + 0.000000001
+            gammaskrank = gammaskrank + dgamma
             !write(8,*) Tag(1,1),Tag(2,2), Dp(1,1)/sqrt(Dp(1,1)**2+Dp(2,2)**2),Dp(2,2)/sqrt(Dp(1,1)**2+Dp(2,2)**2.)
             write(4,*) Cep(1,2,1,2)/75000, epsp
             write(8,*) 'La'
@@ -503,11 +504,12 @@ epspi = epsp+norm2(Dp)*sqrt(2./3.)*dt0
             write(8,*) dot/norm2(Dp2)/norm2(Dp)
             write(8,*)
             write(8,*)
-            call hoshfordnormal(tag,grad)
-            write(fid+60,*) acos(contract2(La,Dp)/norm2(La)/norm2(Dp))*180/pi, &
+            !call hoshfordnormal(tag,grad)
+            call grad_phi(grad,tag,9.d0)
+            write(fid+400,*) acos(contract2(La,Dp)/norm2(La)/norm2(Dp))*180/pi, &
                             acos(contract2(grad,Dp)/norm2(grad)/norm2(Dp))*180/pi, epsp
 
-            write(fid+20,*) Tag(1,1), Tag(2,2), Dp(1,1)/ norm2(La),Dp(2,2)/norm2(La)
+            write(fid+200,*) Tag(1,1), Tag(2,2), Dp(1,1)/ norm2(La),Dp(2,2)/norm2(La)
             write(14,*) Tag(1,1), Tag(2,2), Dp2(1,1) /sqrt( Dp2(1,1)**2+Dp2(2,2)**2), Dp2(2,2)/sqrt(Dp2(1,1)**2+Dp2(2,2)**2)
             write(16,*) Tag(1,1), Tag(2,2), Grad(1,1)/sqrt(Grad(1,1)**2+Grad(2,2)**2),Grad(2,2)/sqrt(Grad(1,1)**2+Grad(2,2)**2)
             
@@ -556,14 +558,23 @@ epspi = epsp+norm2(Dp)*sqrt(2./3.)*dt0
         end if
 
         if (pw == 0) then
-            if (epspi > pw .and. abs(epsp) > pwpercision) then
-            dt0 = dt0/2
+           
+           
+            if (epspi > pw .and. abs(epsp) > pwpercision ) then
+                proximity = 1
+            dt0 = dt0*0.75
             !dt0 = (pw-gammatot)*dt0/(gammatoti-gammatot) 
             switch = switch +1
             secit = secit +1
-            if (secit > 10) then 
+            if (secit > 20) then 
                 exit iter
             end if 
+            cycle iter
+            else if (epspi <= 0.d0 .and. proximity == 1) then 
+            dt0 = dt0*1.1
+            !dt0 = (pw-gammatot)*dt0/(gammatoti-gammatot) 
+            switch = switch +1
+            secit = secit +1
             cycle iter
             end if
         end if
@@ -587,7 +598,7 @@ epspi = epsp+norm2(Dp)*sqrt(2./3.)*dt0
                 dot = dot/norm2(La)/norm2(Dp)
             write(11,*) Tag(1,3),Tag(1,2), Tag(2,3), Tag(3,3) , dot , acos(dot), gammatot
           
-            gammaskrank = gammaskrank + 0.000000001
+            gammaskrank = gammaskrank + dgamma
             !write(8,*) Tag(1,1),Tag(2,2), Dp(1,1)/sqrt(Dp(1,1)**2+Dp(2,2)**2),Dp(2,2)/sqrt(Dp(1,1)**2+Dp(2,2)**2.)
             write(8,*) 'La'
             write(8,*) La/norm2(La)
@@ -614,12 +625,13 @@ epspi = epsp+norm2(Dp)*sqrt(2./3.)*dt0
             write(8,*) dot/norm2(Dp2)/norm2(Dp)
             write(8,*)
             write(8,*)
-            call hoshfordnormal(tag,grad)
-            write(fid+60,*) acos(contract2(La,Dp)/norm2(La)/norm2(Dp))*180/pi, &
+            !call hoshfordnormal(tag,grad)
+            call grad_phi(grad,tag,9.d0)
+            write(fid+400,*) acos(contract2(La,Dp)/norm2(La)/norm2(Dp))*180/pi, &
                             acos(contract2(grad,Dp)/norm2(grad)/norm2(Dp))*180/pi, epsp
 
 
-            write(fid+20,*) Tag(1,1), Tag(2,2), Dp(1,1)/norm2(La) ,Dp(2,2)/norm2(La)
+            write(fid+200,*) Tag(1,1), Tag(2,2), Dp(1,1)/norm2(La) ,Dp(2,2)/norm2(La)
             write(14,*) Tag(1,1), Tag(2,2), Dp2(1,1) /sqrt( Dp2(1,1)**2+Dp2(2,2)**2), Dp2(2,2)/sqrt(Dp2(1,1)**2+Dp2(2,2)**2)
             write(16,*) Tag(1,1), Tag(2,2), Grad(1,1)/sqrt(Grad(1,1)**2+Grad(2,2)**2),Grad(2,2)/sqrt(Grad(1,1)**2+Grad(2,2)**2)
             write(3,*) tag(1,1) , gammatot
@@ -651,7 +663,7 @@ epspi = epsp+norm2(Dp)*sqrt(2./3.)*dt0
             La(3,1) = 0
             La(2,3) = 0
             La(3,2) = 0
-       
+            dt0 = 0.00001
         do i = 1,10
             
             call timestep(Tag, Dp, -La, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,S0in,s0,dt0,Cep)
@@ -671,7 +683,7 @@ epspi = epsp+norm2(Dp)*sqrt(2./3.)*dt0
         Fp0i = Fp0
         F0i  = F0
         S0i = S0   
-  
+        write(*,*) tag(1,1), tag(2,2) 
         end if
 
 

@@ -39,7 +39,20 @@ if (allocatestatus /= 0) stop "Not enough memory"
 !!!                Used when calculating instantaneous yield surfaces, prior to setting bryter = 2.  
 !!!
 !!!   bryter = 4 - Used for strain path change, takes a prestrained crystal(F0,Fp0,S0) calculated using eg bryter = 1, and perform strain in a prescribed direction for a given plastic work. 
-!!!     
+!!!   ------------------------------
+!!!   bryter = 5 or 6 correspond to 1 or 4, only difference is that data is written to file, ie Dp, Gradient, Angles etc, hence these are used to perform path change experiments. 
+!!!
+!!!   bryter = 5 - Calculates point on the yield surface corresponding to the prescribed L11,L22 and plastic work and updates F0,F0p,S0
+!!!                WRITES TO FILE, Initialize an undeformed crystal
+!!!
+!!!   bryter = 6 - Takes a predeformed crystal (F0,Fp0,S0) and perform given deformation in stress or strain controll to a desired plastic strain. 
+!!!
+!!!   ---------------------------
+!!!   bryter = 7 - Performs deformation in either stress or strain controll from an UNDEFORMED crystal to a prescribed plastic strain. Used to calculate yield surfaces. 
+!!!                Writes the calculated stress point to the file "stress.txt"
+!!!
+!!!   bryter = 8 - Performs deformation in either stress or strain controll from an PREDEFORMED crystal to a prescribed plastic strain. Used to calculate instantaneous yield surfaces. 
+!!!                Writes the calculated stress point to the file "stress.txt"
 
 epsp1 = 0
 pw1 = 0.012
@@ -58,11 +71,11 @@ bryter = 7
 !!$OMP END DO NOWAIT
 !!$OMP END PARALLEL
     
-k = 3
+k = 4
     
   !!propconst = (/0.0, 0.0, 0.0, 0.0, 22, 11/)
-    propconst = (/0.0, 0.0, 0.0, 0.0, 0.5, 1.0/)
-    bryter = 5
+    propconst = (/0.0, 0.0, 0.0, 0.0, 1.0, 1.0/)
+    bryter = 3
     tag = 0
     epsp = 0
 
@@ -72,20 +85,26 @@ Tag = 0
 epsp = 0
 pw1 = 0.02
 bcond = 2
-call constexpr(k,16,bryter, bcond,pw1, tag, epsp, propconst,fid)
+!call constexpr(k,16,bryter, bcond,pw1, tag, epsp, propconst,fid)
 call newton(k,16,bryter,bcond,F0,Fp0,S0,pw1,propconst,fid)   
 bryter = 7
 k = 0
-bcond = 2
+bcond = 1
 pw1 = 0.02
 bryter = 7
-
+dt = 0.000001
 bryter = 6
 fid = fid0
 pw1 = 0.1
-pw2 = 0.08
-k = 4
+pw2 = 0.0000001
+k = 0
 bcond = 1
+!call grad_phi(N,tag,9.d0)
+
+!write(*,*) N
+!N = 0
+!call hoshfordnormal(tag,N)
+!write(*,*) N
 !call constexpr(k,16,bryter, bcond,pw1, tag, epsp, propconst,fid)
 !call newton(k,16,bryter,bcond,F0,Fp0,S0,pw2,propconst,fid)   
 
@@ -95,27 +114,27 @@ epsp1 = epsp
 F01 = F0
 Fp01 = Fp0
 S01 = S0
-part = 300
+part = 100
 bryter = 6
 call OMP_SET_NUM_THREADS(7)
 !$OMP PARALLEL PRIVATE(propconst,k, tag,epsp,fid,bryter)
 !$OMP DO
-do k = 0,36
+do k = 0,2*part
     
     tag = tag1
 
     epsp = epsp1
     bcond = 1
-    bryter = 6
+    bryter = 2
     fid = fid0
      !!propconst = (/0.0, 0.0, 0.0, 0.0, 22, 11/)
     propconst = (/0.d+0, 0.d+0, 0.d+0, 0.d+0, sin(2*pi*k/part), cos(2*pi*k/part)/)
     !write(*,*) 'start'
     !write(*,*) k
-    call constexpr(k,64,bryter,bcond,pw1, tag, epsp,propconst,fid)
+    !call constexpr(k,64,bryter,bcond,pw1, tag, epsp,propconst,fid)
    ! write(*,*) tag(1,1), tag(2,2) , k
     fid = fid0
-    call newton(k,64,bryter,bcond,F0,Fp0,S0,pw2,propconst,fid) !
+    call newton(k,part,bryter,bcond,F0,Fp0,S0,pw2,propconst,fid) !
 
 
 
@@ -254,9 +273,11 @@ subroutine hoshfordnormal(Tag,grad)
     H = tag(1,2)
     I2 = (F**2+G**2+H**2)/3. + ((A-C)**2+(C-B)**2+(B-A)**2)/54.
     I3 = ((C-B)*(A-C)*(B-A))/54 + F*G*H - ((C-B)*F**2+(A-C)*G**2+(B-A)*H**2)/6
-    if (I3/I2**(3./2.) > 1 .or. I3/I2**(3./2.) < -1) then
+    if (I3/I2**(3./2.) > 1 ) then
         fraction = 1
-    else 
+    else if (I3/I2**(3./2.) < -1) then
+        fraction = -1
+    else
     fraction = (I3/I2**(3./2.))
     end if
     
@@ -627,7 +648,7 @@ end if
         logical :: consistent, consistentcontroll
         character*16 :: filename
         character*19 :: filename2
-        gammaskrank = 0.0
+        gammaskrank = epsp
         pwpercision = 0.0000000001
         secit = 0
         
@@ -637,14 +658,14 @@ end if
         consistentcontroll = .false.
         if (bcond == 1) then
         write(filename,'("Dp_con_",I2,"_",I2,".txt")') fid , l   
-        open(unit=fid+l, file=filename, status='replace')
+        open(unit=fid+l+600, file=filename, status='replace')
         write(filename2,'("Dp_con_ang",I2,"_",I2,".txt")') fid , l   
-        open(unit=fid+40+l, file=filename2, status='replace')
+        open(unit=fid+800+l, file=filename2, status='replace')
         else   
         write(filename,'("Dp_con_",I2,"_",I2,".txt")') fid , 99 
-        open(unit=fid+l, file=filename, status='replace')
+        open(unit=fid+l+600, file=filename, status='replace')
         write(filename2,'("Dp_con_ang",I2,"_",I2,".txt")') fid , 99
-        open(unit=fid+40+l, file=filename2, status='replace')
+        open(unit=fid+800+l, file=filename2, status='replace')
         end if
 
     ! Sets the initial velocity gradient for the given boundary condition
@@ -690,8 +711,8 @@ end if
         end if   
     end select    
     
-            dt0 = dt
-iter: do while (switch < 100000)
+            dt0 = dt/10.
+iter: do while (switch < 10000000)
 
 
 
@@ -888,10 +909,10 @@ if (bryter == 1 .or. bryter == 5 .or. bryter == 4) then
         call Yoshidamodel(tag,La,Dp)
         call hoshfordnormal(tag,N)
         
-       write(fid+40+l,*) acos(contract2(La,Dp)/norm2(La)/norm2(Dp))*180/pi, acos(contract2(N,Dp)/norm2(N)/norm2(Dp))*180/pi, epsp
+       write(fid+800+l,*) acos(contract2(La,Dp)/norm2(La)/norm2(Dp))*180/pi, acos(contract2(N,Dp)/norm2(N)/norm2(Dp))*180/pi, epsp
         !write(fid+40+l,*) acos(contract2(La,N)/norm2(La)/norm2(N))*180/pi, acos(contract2(N,Dp)/norm2(N)/norm2(Dp))*180/pi, epsp
-        write(fid+l,*) Tag(1,1), Tag(2,2) , Dp(1,1)/norm2(La), Dp(2,2)/norm2(La) 
-        gammaskrank = gammaskrank + 0.000000001
+        write(fid+l+600,*) Tag(1,1), Tag(2,2) , Dp(1,1)/norm2(La), Dp(2,2)/norm2(La) 
+        gammaskrank = gammaskrank + dgamma
         
         end if
     end if 
@@ -950,11 +971,11 @@ else if (bryter == 2 .or. bryter == 6) then
         write(11,*) Tag(1,1), tag(2,2), Tag(1,3),Tag(1,2), Tag(2,3), Tag(3,3),  epsp
         call Yoshidamodel(tag,La,Dp)
         call hoshfordnormal(tag,N)
-        write(fid+40+l,*) acos(contract2(La,Dp)/norm2(La)/norm2(Dp))*180/pi, acos(contract2(N,Dp)/norm2(N)/norm2(Dp))*180/pi, epsp
+        write(fid+800+l,*) acos(contract2(La,Dp)/norm2(La)/norm2(Dp))*180/pi, acos(contract2(N,Dp)/norm2(N)/norm2(Dp))*180/pi, epsp
 
 
-        gammaskrank = gammaskrank + 0.000000001
-        write(fid+l,*) Tag(1,1), Tag(2,2) , Dp(1,1)/norm2(La), Dp(2,2)/norm2(La) 
+        gammaskrank = gammaskrank + dgamma
+        write(fid+l+600,*) Tag(1,1), Tag(2,2) , Dp(1,1)/norm2(La), Dp(2,2)/norm2(La) 
         !write(8,*) Tag(1,1),Tag(2,2), Dp(1,1)/sqrt(Dp(1,1)**2+Dp(2,2)**2),Dp(2,2)/sqrt(Dp(1,1)**2+Dp(2,2)**2.)
         
         end if
@@ -1058,7 +1079,7 @@ subroutine yoshi2(tag,D,epsp,dt0,consistent)
       integer , dimension(6) :: pos1, pos2
       real(8) :: c1= 0.3, c2 = 0.5, c3 = 0.4 ,theta0 
 
-      modelnum = 1
+      modelnum = 2
         pos1 = (/1, 2, 3, 2, 1, 1/)
         pos2 = (/1, 2, 3, 3, 3, 2/)
       dl = 0.000001

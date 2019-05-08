@@ -1,5 +1,6 @@
 module global
     use mathmod
+    use Bjorns_numgrad
     implicit none
 
     real(8) , dimension(6,12)               :: slip
@@ -7,7 +8,7 @@ module global
     real(8) , dimension(:,:), Allocatable   :: eul
     integer                                 :: nlines
     real(8), dimension(3,3)                 :: id
-    real(8)                                 ::  dt, pi 
+    real(8)                                 ::  dt, pi , dgamma
     real(8) , dimension(:,:,:), Allocatable :: R    
     logical                                 :: hardening                              
     
@@ -21,6 +22,7 @@ module global
     real(8) :: phi1, Phi, phi2
         pi = 4.D0*DATAN(1.D0)
         dt = 0.0001
+        dgamma = 0.00001
         hardening = .false.
         
     !Create identity matrix
@@ -190,7 +192,7 @@ subroutine eulang(R,phi1,Phi,phi2)
             write(*,*) I3/I2**(3./2.)
             theta = 0
         else if ( I3/I2**(3./2.) < -1 ) then
-            write(*,*) I3/I2**(3./2.)
+            !write(*,*) I3/I2**(3./2.)
             theta = pi
         else
         theta = acos(I3/I2**(3./2.))
