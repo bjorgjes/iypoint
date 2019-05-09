@@ -32,14 +32,14 @@ end if
 
 if (bcond == 1 .and. bryter == 5 .or. bryter == 6) then
     write(filename,'("Dp_cp_",I2,"_",I2,".txt")') fid , k  
-    open(unit=fid+200+k, file=filename, status='replace')
+    open(unit=fid+200+k, file=filename, status='unknown')
     write(filename2,'("Dp_cp_ang",I2,"_",I2,".txt")') fid , k   
-        open(unit=fid+400+k, file=filename2, status='replace')
+        open(unit=fid+400+k, file=filename2, status='unknown')
     else if (bcond == 2 .and. bryter == 5 .or. bryter == 6)  then 
     write(filename,'("Dp_cp_",I2,"_",I2,".txt")') fid , 99 
-    open(unit=fid+200+k, file=filename, status='replace')
+    open(unit=fid+200+k, file=filename, status='unknown')
     write(filename2,'("Dp_cp_ang",I2,"_",I2,".txt")') fid , 99 
-    open(unit=fid+400+k, file=filename2, status='replace')
+    open(unit=fid+400+k, file=filename2, status='unknown')
  end if
 fid = fid+k
 write(utskrift1,'("start ",I2," cp")') k  
@@ -487,7 +487,7 @@ epspi = epsp+norm2(Dp)*sqrt(2./3.)*dt0
             write(8,*) 'Gradient'
             write(8,*) grad/norm2(grad)
             write(8,*) 'Dp-Yoshida'
-            call Yoshidamodel(Tag,La,Dp2)
+            !call Yoshidamodel(Tag,La,Dp2)
             write(8,*) Dp2/norm2(Dp2)
             write(8,*) 'Dp:La'
             write(8,*) dot
@@ -608,7 +608,7 @@ epspi = epsp+norm2(Dp)*sqrt(2./3.)*dt0
             write(8,*) 'Gradient'
             write(8,*) grad/norm2(grad)
             write(8,*) 'Dp-Yoshida'
-            call Yoshidamodel(Tag,La,Dp2)
+            !call Yoshidamodel(Tag,La,Dp2)
             write(8,*) Dp2/norm2(Dp2)
             write(8,*) 'Dp:La'
             write(8,*) dot
@@ -627,11 +627,11 @@ epspi = epsp+norm2(Dp)*sqrt(2./3.)*dt0
             write(8,*)
             !call hoshfordnormal(tag,grad)
             call grad_phi(grad,tag,9.d0)
-            write(fid+400,*) acos(contract2(La,Dp)/norm2(La)/norm2(Dp))*180/pi, &
-                            acos(contract2(grad,Dp)/norm2(grad)/norm2(Dp))*180/pi, epsp
+            !write(fid+400,*) acos(contract2(La,Dp)/norm2(La)/norm2(Dp))*180/pi, &
+             !               acos(contract2(grad,Dp)/norm2(grad)/norm2(Dp))*180/pi, epsp
 
 
-            write(fid+200,*) Tag(1,1), Tag(2,2), Dp(1,1)/norm2(La) ,Dp(2,2)/norm2(La)
+            !write(fid+200,*) Tag(1,1), Tag(2,2), Dp(1,1)/norm2(La) ,Dp(2,2)/norm2(La)
             write(14,*) Tag(1,1), Tag(2,2), Dp2(1,1) /sqrt( Dp2(1,1)**2+Dp2(2,2)**2), Dp2(2,2)/sqrt(Dp2(1,1)**2+Dp2(2,2)**2)
             write(16,*) Tag(1,1), Tag(2,2), Grad(1,1)/sqrt(Grad(1,1)**2+Grad(2,2)**2),Grad(2,2)/sqrt(Grad(1,1)**2+Grad(2,2)**2)
             write(3,*) tag(1,1) , gammatot
@@ -639,6 +639,15 @@ epspi = epsp+norm2(Dp)*sqrt(2./3.)*dt0
         end if 
         
         if (pw /= 0 .and. abs((epsp -pw)/pw)<= pwpercision) then
+            call grad_phi(grad,tag,9.d0)
+            write(fid+400,*) acos(contract2(La,Dp)/norm2(La)/norm2(Dp))*180/pi, &
+                            acos(contract2(grad,Dp)/norm2(grad)/norm2(Dp))*180/pi, epsp
+
+
+            write(fid+200,*) Tag(1,1), Tag(2,2), Dp(1,1)/norm2(La) ,Dp(2,2)/norm2(La)
+            Fp0i = Fp0
+            F0i  = F0
+            S0i = S0 
             exit iter
         else if (pw == 0 .and. epsp <= pwpercision .and. epsp > 0) then
            ! write(*,*) 'check'

@@ -189,7 +189,7 @@ subroutine eulang(R,phi1,Phi,phi2)
         I2 = (F**2+G**2+H**2)/3. + ((A-C)**2+(C-B)**2+(B-A)**2)/54.
         I3 = ((C-B)*(A-C)*(B-A))/54 + F*G*H - ((C-B)*F**2+(A-C)*G**2+(B-A)*H**2)/6
         if (I3/I2**(3./2.) > 1 ) then
-            write(*,*) I3/I2**(3./2.)
+            !write(*,*) I3/I2**(3./2.)
             theta = 0
         else if ( I3/I2**(3./2.) < -1 ) then
             !write(*,*) I3/I2**(3./2.)
@@ -294,5 +294,31 @@ function haveps(epsp)
     return
 end function haveps
 
+function alphacoeff(theta, epsp, modelnum, G)
+implicit none
+real(8) :: c1= 0.3, c2 = 0.5, c3 = 0.4 ,theta0
+real(8) :: alphacoeff, theta, epsp, modelnum, G
 
+if (modelnum == 1) then
+    theta0 = pi/18.
+else if (modelnum == 2) then
+    theta0 = pi/18./2.
+end if 
+
+
+if (theta >= 0 .and. theta <= theta0 ) then
+        alphacoeff = 1-c1*sqrt(gaveps(epsp)/G)-c2*macauley(haveps(epsp))/G
+else if (theta > theta0 .and. theta < pi/2) then
+    if (modelnum == 1) then 
+        alphacoeff = (1-c1*sqrt(gaveps(epsp)/G)-c2*macauley(haveps(epsp))/G)*((pi/2-theta)/(pi/2-theta0))
+    else if (modelnum == 2) then
+        alphacoeff = (1-c1*sqrt(gaveps(epsp)/G)-c2*macauley(haveps(epsp))/G)*Tan(c3*(theta-theta0)+theta0)/tan(theta)
+    end if
+    !alpha = (pi/2-theta)/(pi/2-theta0)
+else if ( theta >= pi/2 .and. theta < pi ) then
+    alphacoeff = 0
+    write(*,*) 'Warning unloading'
+end if   
+return
+end function alphacoeff
 end module
