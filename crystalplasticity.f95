@@ -2,11 +2,11 @@ module crystalplasticity
 use global
 
 contains
-subroutine newton(k,part,bryter,bcond,F0i,Fp0i,S0i,pw,propconst,fid)
+subroutine newton(k,part,bryter,bcond,F0i,Fp0i,S0i,pw,cpstrain,propconst,fid)
     
     implicit none
 real(8) , dimension(3,3)  :: La, Tag, Dp
-real(8) :: pw
+real(8) :: pw, cpstrain
 integer ::  k, part,teller,bry,bcond,fid
 integer  :: bryter
 !real(8), dimension(nlines,3), intent(in) :: eul
@@ -59,12 +59,12 @@ La(3,1) = 0
 La(2,3) = 0
 La(3,2) = 0
     write(*,*) utskrift1
-    call taylor(La,Tag,bryter,bcond,F0i,Fp0i,S0i,pw,Dp,propconst,fid)
+    call taylor(La,Tag,bryter,bcond,F0i,Fp0i,S0i,pw,cpstrain,Dp,propconst,fid)
     write(utskrift1,'("slutt ",I2," cp")') k  
     write(*,*) Tag(1,1), tag(2,2), utskrift1
     if (bry == 1) then ! If one want relaxed state. 
         !Performes relaxation
-        call taylor(La,Tag,3,bcond,F0i,Fp0i,S0i,pw,Dp,propconst,fid)
+        call taylor(La,Tag,3,bcond,F0i,Fp0i,S0i,pw,cpstrain,Dp,propconst,fid)
     end if
 if (bryter == 2) then
 write(3,*) Tag(1,1), Tag(2,2), k
@@ -92,7 +92,7 @@ if (bry == 5) then
 end subroutine newton
 
 
-subroutine taylor(La,Tag,bryter,bcond,F0i,Fp0i,S0i,pw,Dp,propconst,fid)
+subroutine taylor(La,Tag,bryter,bcond,F0i,Fp0i,S0i,pw,cpstrain,Dp,propconst,fid)
     
         implicit none
     
@@ -114,7 +114,7 @@ subroutine taylor(La,Tag,bryter,bcond,F0i,Fp0i,S0i,pw,Dp,propconst,fid)
     real(8), dimension(5) :: offdl2, sigma2, IPIV2
     real(8) , dimension(5,5)  :: Jacob2, Jinv2
     integer, dimension(6) :: pos1, pos2
-    real(8) :: pwpercision, epspi, convcriterion, deltak, normsigma
+    real(8) :: pwpercision, epspi, convcriterion, deltak, normsigma,cpstrain
     real(8), dimension(6) :: propconst
     ! The percision of the plastic work given in relative fraction
     pwpercision = 0.00000001
@@ -130,7 +130,7 @@ subroutine taylor(La,Tag,bryter,bcond,F0i,Fp0i,S0i,pw,Dp,propconst,fid)
     !Define velocity gradient
     !strainrate
         gammatot = 0
-        epsp = 0
+        epsp = cpstrain
     !Copies of the input variables, in order not to update the initial condition when calculating instantaneous yield surface.
         S0 = s0i 
         Fp0 = Fp0i  
@@ -510,7 +510,7 @@ epspi = epsp+norm2(Dp)*sqrt(2./3.)*dt0
                             acos(contract2(grad,Dp)/norm2(grad)/norm2(Dp))*180/pi, epsp
 
             write(fid+200,*) Tag(1,1), Tag(2,2), Dp(1,1)/ norm2(La),Dp(2,2)/norm2(La)
-            write(14,*) Tag(1,1), Tag(2,2), Dp2(1,1) /sqrt( Dp2(1,1)**2+Dp2(2,2)**2), Dp2(2,2)/sqrt(Dp2(1,1)**2+Dp2(2,2)**2)
+            !write(14,*) Tag(1,1), Tag(2,2), Dp2(1,1) /sqrt( Dp2(1,1)**2+Dp2(2,2)**2), Dp2(2,2)/sqrt(Dp2(1,1)**2+Dp2(2,2)**2)
             write(16,*) Tag(1,1), Tag(2,2), Grad(1,1)/sqrt(Grad(1,1)**2+Grad(2,2)**2),Grad(2,2)/sqrt(Grad(1,1)**2+Grad(2,2)**2)
             
             write(3,*) tag(1,1), epsp
@@ -522,6 +522,7 @@ epspi = epsp+norm2(Dp)*sqrt(2./3.)*dt0
             Fp0i = Fp0
             F0i  = F0
             S0i = S0   
+            cpstrain = epsp
             !call Yoshidamodel(Tag,La,Dp2)
           
             write(13,*) Dp
@@ -632,7 +633,7 @@ epspi = epsp+norm2(Dp)*sqrt(2./3.)*dt0
 
 
             !write(fid+200,*) Tag(1,1), Tag(2,2), Dp(1,1)/norm2(La) ,Dp(2,2)/norm2(La)
-            write(14,*) Tag(1,1), Tag(2,2), Dp2(1,1) /sqrt( Dp2(1,1)**2+Dp2(2,2)**2), Dp2(2,2)/sqrt(Dp2(1,1)**2+Dp2(2,2)**2)
+            !write(14,*) Tag(1,1), Tag(2,2), Dp2(1,1) /sqrt( Dp2(1,1)**2+Dp2(2,2)**2), Dp2(2,2)/sqrt(Dp2(1,1)**2+Dp2(2,2)**2)
             write(16,*) Tag(1,1), Tag(2,2), Grad(1,1)/sqrt(Grad(1,1)**2+Grad(2,2)**2),Grad(2,2)/sqrt(Grad(1,1)**2+Grad(2,2)**2)
             write(3,*) tag(1,1) , gammatot
             end if
@@ -645,9 +646,11 @@ epspi = epsp+norm2(Dp)*sqrt(2./3.)*dt0
 
 
             write(fid+200,*) Tag(1,1), Tag(2,2), Dp(1,1)/norm2(La) ,Dp(2,2)/norm2(La)
+            write(12,*) tag, epsp
             Fp0i = Fp0
             F0i  = F0
             S0i = S0 
+            cpstrain = epsp
             exit iter
         else if (pw == 0 .and. epsp <= pwpercision .and. epsp > 0) then
            ! write(*,*) 'check'

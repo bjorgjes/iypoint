@@ -3,7 +3,7 @@ use crystalplasticity
     implicit none
 
 integer :: part,bryter, k, i,bcond, fid, allocatestatus, fid0
-real(8) :: t1,t2,omp_get_wtime,pw1,pw2,epsp,epsp1
+real(8) :: t1,t2,omp_get_wtime,pw1,pw2,epsp,epsp1,cpstrain
 real(8) , dimension(3,3) :: tag, tag1, N
 real(8) , dimension(6) :: propconst
 !real(8) , dimension(:,:), Allocatable ::eul
@@ -66,20 +66,21 @@ propconst = (/0.0, 0.0, 0.0, 0.0, 1.0, 1.0/)
 bryter = 5
 Tag = 0
 epsp = 0
+cpstrain = 0
 pw1 = 0.02
 bcond = 2
 call constexpr(k,16,bryter, bcond,pw1, tag, epsp, propconst,fid)
-call newton(k,16,bryter,bcond,F0,Fp0,S0,pw1,propconst,fid)   
+call newton(k,16,bryter,bcond,F0,Fp0,S0,pw1,cpstrain,propconst,fid)   
 tag1 = tag
 epsp1 = epsp
-
+write(*,*) cpstrain
 
 part = 100
 bryter = 6
 call OMP_SET_NUM_THREADS(1)
 !$OMP PARALLEL PRIVATE(propconst,k, tag,epsp,fid,bryter)
 !$OMP DO
-do k = 1,400
+do k = 1,10
     tag = tag1
     epsp = epsp1
     pw1 = 0.02+0.0002*k
@@ -94,7 +95,7 @@ do k = 1,400
     call constexpr(0,16,bryter,bcond,pw1, tag, epsp,propconst,fid)
    ! write(*,*) tag(1,1), tag(2,2) , k
     fid = fid0
-    call newton(0,16,bryter,bcond,F0,Fp0,S0,pw2,propconst,fid) !
+    call newton(0,16,bryter,bcond,F0,Fp0,S0,pw1,cpstrain,propconst,fid) !
     tag1 = tag
     epsp1 = epsp
 end do
