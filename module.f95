@@ -10,7 +10,8 @@ module global
     real(8), dimension(3,3)                 :: id
     real(8)                                 ::  dt, pi , dgamma
     real(8) , dimension(:,:,:), Allocatable :: R    
-    logical                                 :: hardening                              
+    logical                                 :: hardening  
+    real(8)                                 :: c1, c2 , c3 ,theta0                            
     
     !!$OMP THREADPRIVATE(slip,Cel,eul,nlines,id,R, hardening, pi, dt)
     contains
@@ -21,10 +22,15 @@ module global
     integer :: i
     real(8) :: phi1, Phi, phi2
         pi = 4.D0*DATAN(1.D0)
-        dt = 0.0001
+        dt = 0.001
         dgamma = 0.00001
         hardening = .false.
-        
+     !!!! parameters for constitutive model
+        c1 = 0.3 
+        c2 = 0.5
+        c3 = 0.4
+        theta0 = pi/18
+
     !Create identity matrix
     id = 0
     forall(i = 1:3) id(i,i) = 1
@@ -321,4 +327,105 @@ else if ( theta >= pi/2 .and. theta < pi ) then
 end if   
 return
 end function alphacoeff
+
+!!! SUBROUTINE TO CALCULATE THE GRADIENT OF A GIVEN HOSHFORD YIELD SURFACE. 
+subroutine hoshfordnormal(Tag,grad)
+    !Subroutine for calculation of the GRADIENT of the Hoshford/Hersey yield surface
+    ! The method is adapted from Barlat et al (1991) "A six-component yield function for anisotropic materials"
+    ! Since the hoshford/Hersey yield surface is given in principle stresses, the eigenvalue problem has to be analytically solved in order to calculate the gradient directly
+    ! The partial derivatives of A,B,C,F,G,H (Bishop-Hill notation) with respect to the six stress component are writen in the matrix partials.
+    !   
+    !               dA/ds11 dB/ds11    .....  dH/ds11  
+    !               dA/ds22 dB/ds22             .
+    ! partials =    dA/ds33    .    .           .
+    !               dA/ds23    .      .         .    
+    !               dA/ds13    .        .        .            
+    !               dA/ds12    .        ..... dH/ds12
+    !
+  
+    implicit none 
+    real(8), dimension(3,3), intent(in) :: Tag
+    real(8), dimension(3,3), intent(out) :: grad
+    real(8) :: A, B, C, F, G, H, dI2,dI3, dtheta, I2, I3, theta, m = 9.0 , dsum,sum, sFi, fraction
+    real(8) , dimension(6,6) :: partials
+    integer :: i 
+    real(8) , dimension(6) :: n
+    
+    grad = 0
+    n = 0 
+   
+    partials(1,1:6) = (/  0.0 , -1.0,  1.0,  0.0,  0.0,  0.0/)
+    partials(2,1:6) = (/  1.0 ,  0.0, -1.0,  0.0,  0.0,  0.0/)
+    partials(3,1:6) = (/ -1.0 ,  1.0,  0.0,  0.0,  0.0,  0.0/)
+    partials(4,1:6) = (/  0.0 ,  0.0,  0.0,  1.0,  0.0,  0.0/)
+    partials(5,1:6) = (/  0.0 ,  0.0,  0.0,  0.0,  1.0,  0.0/)
+    partials(6,1:6) = (/  0.0 ,  0.0,  0.0,  0.0,  0.0,  1.0/)
+
+    A = tag(2,2)-tag(3,3)
+    B = tag(3,3)-tag(1,1)
+    C = tag(1,1)-tag(2,2)
+    F = tag(2,3)
+    G = tag(1,3)
+    H = tag(1,2)
+    I2 = (F**2+G**2+H**2)/3. + ((A-C)**2+(C-B)**2+(B-A)**2)/54.
+    I3 = ((C-B)*(A-C)*(B-A))/54 + F*G*H - ((C-B)*F**2+(A-C)*G**2+(B-A)*H**2)/6
+    if (I3/I2**(3./2.) > 1 ) then
+        fraction = 1
+    else if (I3/I2**(3./2.) < -1) then
+        fraction = -1
+    else
+    fraction = (I3/I2**(3./2.))
+    end if
+    
+    theta = acos(fraction)
+    sum = ((2*cos((2*theta+pi)/6.))**(m))+((2*cos((2*theta -  3*pi)/6.))**(m)) + ((-2*cos((2*theta +  5*pi)/6.))**(m))
+    sFi = (3*I2)**(m/2.)*sum
+    
+    !write(*,*) theta, sum, sFi  
+    do i = 1,6
+        dI2 = 2./3.*(F*partials(i,4)+G*partials(i,5)+H*partials(i,6)) &
+        +2./54.*((A-C)*(partials(i,1)-partials(i,3))) &
+        +2./54.*((C-B)*(partials(i,3)-partials(i,2))) &
+        +2./54.*((B-A)*(partials(i,2)-partials(i,1)))
+        !write(*,*) -1/sqrt(1-fraction**2)
+
+        dI3 = 1./54.*((partials(i,3)-partials(i,2))*(A-C)*(B-A) & 
+        + ((partials(i,1)-partials(i,3))*(B-A)+(A-C)*(partials(i,2)-partials(i,1)))*(C-B)) &
+        + partials(i,4)*G*H + F*partials(i,5)*H + F*H*partials(i,6) &
+        - (2*F/6*partials(i,4)*(C-B)+F**2/6*(partials(i,3)-partials(i,2))) &
+        - (2*G/6*partials(i,5)*(A-C)+G**2/6*(partials(i,1)-partials(i,3))) &
+        - (2*H/6*partials(i,6)*(B-A)+H**2/6*(partials(i,2)-partials(i,1))) 
+        
+        if (fraction == 1 .or. fraction == -1) then
+            dtheta = 0
+        else
+        dtheta = -1/sqrt(1-fraction**2)*(dI3*I2**(3./2.)-3./2.*I2**(1./2.)*dI2*I3)/I2**3
+        end if
+        !write(*,*) (dI3*I2**(3./2.)-3./2.*I2**(1./2.)*dI2*I3)/I2**3
+       
+        !write(*,*) dtheta
+        
+        dsum = m*dtheta* &
+        (  ( 2*cos((2*theta +   pi)/6.))**(m-1) * (-4./6.*sin((2*theta +   pi)/6)) &
+         + ( 2*cos((2*theta - 3*pi)/6.))**(m-1) * (-4./6.*sin((2*theta - 3*pi)/6.)) &
+         + (-2*cos((2*theta + 5*pi)/6.))**(m-1) * ( 4./6.*sin((2*theta + 5*pi)/6)))
+    
+        n(i) = m/2*3**(m/2.)*I2**(m/2.-1.)*dI2*sum+(3*I2)**(m/2.)*dsum
+
+        !write(*,*) dI2, dI3, dtheta, dsum
+    end do
+       !n = n/norm2(n)
+!write(*,*) n/norm2(n)
+!write(8,*) tag(1,1), tag(2,2), n(1), n(2)
+!call vec2tens(grad,n)
+grad = vec2tens(n)
+
+
+grad = grad*1/(2*m)*(sFi/2)**(1/m-1)
+!write(*,*) grad
+
+return
+end subroutine hoshfordnormal
+
+
 end module

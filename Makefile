@@ -4,10 +4,11 @@ F77FLAGS = $(FFLAGS)
 HPROG1 = iypoint32
 
  
-DEP1  = mathmod.o module.o bjorns_mod.o crystalplasticity.o iypoint32.f95
+DEP1  = mathmod.o module.o bjorns_mod.o crystalplasticity.o constitutive_model.o iypoint32.f95
 DEP2  = mathmod.o bjorns_mod.o module.f95 
 DEP3  = mathmod.o module.o bjorns_mod.o crystalplasticity.f95
 DEP4  = bjorns_mod.f95
+DEP5  = mathmod.o module.o bjorns_mod.o crystalplasticity.o constitutive_model.f95 
  
  
 PROGS = $(HPROG1) 
@@ -27,9 +28,11 @@ crystalplasticity.o : $(DEP3)
 	$(FC) $(FFLAGS) -c crystalplasticity.f95 
 bjorns_mod.o : $(DEP4)
 	$(FC) $(FFLAGS) -c bjorns_mod.f95
+constitutive_model.o : $(DEP5)
+	$(FC) $(FFLAGS) -c constitutive_model.f95	
 
 clean:
-	rm module.o mathmod.o crystalplasticity.o
+	rm module.o mathmod.o crystalplasticity.o constitutive_model.o
 	rm Dp_*
 
 git:
