@@ -234,7 +234,7 @@ do k = 1,4
 end do
 !!$OMP END DO NOWAIT
 !!$OMP END PARALLEL
-!write(*,*) gradient
+write(*,*) gradient
 !!!! Perform line search
 p = -gradient/norm2(gradient)
 
@@ -258,6 +258,7 @@ linesearch: do
         cycle  linesearch
     end if
     if (tempsol(3) < 0) then
+        
         alpha = -solution(3)/p(3)
         cycle linesearch
     end if
@@ -273,9 +274,10 @@ linesearch: do
 
     error2 = modelerror(tempsol(1), tempsol(2), tempsol(3), tempsol(4))
   
-write(*,*) error2 - error + alpha*beta*dot_product(p,gradient)
-    if (error2 > error + alpha*beta*dot_product(p,gradient) ) then
-        write(*,*) error2 - error + alpha*beta*dot_product(p,gradient)
+write(*,*) error2 - error 
+!- alpha*beta*dot_product(p,gradient) + alpha*beta*dot_product(p,gradient)
+    if (error2 < error ) then
+        write(*,*) error2 - error - alpha*beta*dot_product(p,gradient)
         exit linesearch
     end if
     alpha = alpha/2

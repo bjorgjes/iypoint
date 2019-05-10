@@ -1107,7 +1107,7 @@ end if
     bcond = 1
     bryter = 2
     fid = 21
-    do k = 1,20
+    do k = 1,1
         pw = 0.02+0.001*k
         call constexpr(0,16,bryter,bcond,pw, tag, epsp,propconst,fid)
         devtag = tag - (tag(1,1)+tag(2,2)+tag(3,3))/3
