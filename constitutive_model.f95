@@ -112,7 +112,7 @@ consistentcontroll = .true.
     tagi = tag
     epspi = epsp
     consistent = consistentcontroll
-       call yoshi2(Tagi,La,epspi,dt0,consistent,Dp)
+       call yoshi3(Tagi,La,epspi,dt0,consistent,Dp)
  
        do h = 1,4
         sigma(h) = Tagi(pos1(h),pos2(h))
@@ -142,7 +142,7 @@ consistentcontroll = .true.
                 Lb(pos1(p),pos2(p)) = La(pos1(p),pos2(p)) + dl 
                 end if
 
-                call yoshi2(Tagb,Lb,epspi,dt0,consistent,Dp)
+                call yoshi3(Tagb,Lb,epspi,dt0,consistent,Dp)
             do k = 1,4    
             jacob(k,p) = (Tagb(pos1(k),pos2(k))-Tagi(pos1(k),pos2(k)))/dl
             end do
@@ -186,7 +186,7 @@ case (2)
    consistent = consistentcontroll
    !write(*,*) tagi(1,1), tagi(2,2),epspi, consistent, consistentcontroll
   
-   call yoshi2(Tagi,La,epspi,dt0,consistent,Dp)
+   call yoshi3(Tagi,La,epspi,dt0,consistent,Dp)
    
 
     do h = 1,5
@@ -200,7 +200,7 @@ case (2)
          if (abs(sigma2(minl)) < 0.00000000001 .and. abs(sigma2(maxl)) < 0.00000000001) then
           consistentcontroll = consistent
           !write(*,*) tagi(1,1), tagi(2,2), epspi,consistent, consistentcontroll
-            ! write(*,*) sigma2 , epspi
+            write(*,*) sigma2 , epspi
        !      write(*,*) tagi(1,1), tagi(2,2)
             exit boundary2
          end if 
@@ -219,7 +219,7 @@ case (2)
                 Lb(pos1(p),pos2(p)) = La(pos1(p),pos2(p)) + dl 
                 end if
 
-                call yoshi2(Tagb,Lb,epspi,dt0,consistent,Dp)
+                call yoshi3(Tagb,Lb,epspi,dt0,consistent,Dp)
                
                 
                 !consistent = consistentcontroll
@@ -801,7 +801,7 @@ end if
       implicit none
 
       real(8), dimension(3,3,3,3) :: Cep, dyadic, T, CT,Cel4
-      real(8), dimension(3,3) :: N, D, tag, dtag,Nnorm, Dtan, tagint, Ddev, tagcheck,tag1, Dp, De, Dcorr
+      real(8), dimension(3,3) :: N, tag, dtag,Nnorm, Dtan, tagint, Ddev, tagcheck,tag1, Dp, De, Dcorr
       real(8) :: h ,h2, G,epspelpred, theta, alpha, sigma, sigma0, dt0, epsp, lambdadot, lambdadot2
       real(8) :: feps,feps2 , sigmacheck, dt1,epsp2, sigmaelpred, dl ,modelnum
       real(8) , dimension(6,6) :: Chook
@@ -811,6 +811,7 @@ end if
       real(8) , dimension(7) :: newtvec, solution,IPIV
       real(8) , dimension(7,7) :: Jacobi
       integer , dimension(6) :: pos1, pos2
+      real(8), intent(in), dimension(3,3) :: D
       !real(8) :: c1= 0.3, c2 = 0.5, c3 = 0.4 ,theta0 
 
       modelnum = 2
@@ -928,7 +929,7 @@ hvec = tens2vec(tag1)-tens2vec(tagcheck) + &
 
 newtvec(1:6) = hvec
 newtvec(7) = feps
-
+!write(*,*) newtvec
 !!!! Calculate jacobian
 !!!  The six stress components are used, toghether with lambda dot
 
@@ -1036,11 +1037,12 @@ solution = -newtvec
     lambdadot = lambdadot+solution(7)
 !write(*,*) solution
     if (q > 10) then
-        !write(*,*) 'not fully converged solution'
-        write(*,*) solution
+       ! write(*,*) 'not fully converged solution'
+        !write(*,*) newtvec
     end if
-    if (q > 15 .and. norm2(newtvec) < 1e-5) then
+    if (q > 15 ) then
         write(*,*) 'not fully converged solution'
+        write(*,*) newtvec
         exit 
     end if
     q = q+1
@@ -1107,7 +1109,7 @@ end if
     bcond = 1
     bryter = 2
     fid = 21
-    do k = 1,1
+    do k = 1,20
         pw = 0.02+0.001*k
         call constexpr(0,16,bryter,bcond,pw, tag, epsp,propconst,fid)
         devtag = tag - (tag(1,1)+tag(2,2)+tag(3,3))/3
@@ -1125,7 +1127,8 @@ end if
         modelerror = modelerror + abs(acos(contract2(devtag,devcptag)/norm2(devtag)/norm2(devcptag)))/nlines
         !write(*,*) modelerror, k
     end do 
-    close(17)   
+    close(17) 
+    return  
 end function modelerror
 
 end module constitutive

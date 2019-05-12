@@ -63,12 +63,13 @@ fid0 = 46
 initial = (/3.2d-1, 0.5d+0, 0.5d+0, pi/36 /)
 call steepestdecent(solution, initial)
 tag = 0
-tag(1,1) = 49.103557586671037
-tag(2,2) = 49.103557586671037
-tag(3,3) = 1.1107815788452554E-012
-epsp = 0.02
+!epsp = 0
+!tag(1,1) = 49.103557586671037
+!tag(2,2) = 49.103557586671037
+!tag(3,3) = 1.1107815788452554E-012
+!epsp = 0.02
 !error = modelerror(9.d2, 0.6d0, 0.5d0, pi/9)
-write(*,*) error
+!write(*,*) error
 fid = fid0
 !!propconst = (/0.0, 0.0, 0.0, 0.0, 22, 11/)
 propconst = (/0.0, 0.0, 0.0, 0.0, 1.0, 1.0/)
@@ -90,6 +91,7 @@ call OMP_SET_NUM_THREADS(1)
 !$OMP DO
 do k = 1,20
     tag = tag1
+
     epsp = epsp1
     pw1 = 0.02+0.001*k
     pw2 = 0.0002
@@ -206,10 +208,10 @@ subroutine steepestdecent(solution, initial)
     integer :: k, i 
     
 solution = initial
-dl = 0.00001
+dl = 0.1
     !!! calculate gradient 
 error = modelerror(solution(1),solution(2),solution(3), solution(4))
-
+write(*,*) error
 do i = 1,100
 
 
@@ -225,15 +227,17 @@ do k = 1,4
     tempsol= solution
     
    tempsol(k) = tempsol(k) + dl 
-   if (k == 3 .and. tempsol(k) > 1) then
-    tempsol(k) = solution(k) - dl
-    gradient(k) =-(modelerror(tempsol(1), tempsol(2), tempsol(3), tempsol(4))-error)/dl
-   else 
+   !if (k == 3 .and. tempsol(k) > 1) then
+   ! tempsol(k) = solution(k) - dl
+   ! gradient(k) =-(modelerror(tempsol(1), tempsol(2), tempsol(3), tempsol(4))-error)/dl
+   !else 
+   write(*,*) modelerror(tempsol(1), tempsol(2), tempsol(3), tempsol(4))-error
    gradient(k) = (modelerror(tempsol(1), tempsol(2), tempsol(3), tempsol(4))-error)/dl
-   end if
+   !end if
 end do
 !!$OMP END DO NOWAIT
 !!$OMP END PARALLEL
+write(*,*) 'gradient'
 write(*,*) gradient
 !!!! Perform line search
 p = -gradient/norm2(gradient)
@@ -245,30 +249,48 @@ error2 = error
 !write(*,*) p
 linesearch: do 
     tempsol = solution + alpha*p
-    !write(*,*) tempsol
+    write(*,*) p
     !write(*,*) alpha
     !!!!! check if solution is within range.
 
     if (tempsol(1) < 0 ) then
-        alpha = -solution(1)/p(1)
-        cycle linesearch
+        if (solution(1) > 0 ) then
+            alpha = -solution(1)/p(1)
+            cycle  linesearch
+                else
+             p(1) = 0
+             cycle  linesearch
+        end if
     end if
     if (tempsol(2) < 0 ) then
-        alpha = -solution(2)/p(2)
-        cycle  linesearch
+        if (solution(2) > 0 ) then
+            alpha = -solution(2)/p(2)
+            cycle  linesearch
+                else
+            p(2) = 0
+            cycle  linesearch
+        end if
     end if
     if (tempsol(3) < 0) then
-        
-        alpha = -solution(3)/p(3)
-        cycle linesearch
+        if (solution(3) > 0 ) then
+            alpha = -solution(3)/p(3)
+            cycle linesearch
+            else
+                p(3) = 0
+        end if
     end if
     if (tempsol(3) > 1) then
         alpha = 1-solution(3)/p(3)
         cycle linesearch
     end if
     if (tempsol(4) < 0) then
-        alpha = -solution(4)/p(4)
-        cycle   linesearch 
+        if (solution(4) > 0 ) then
+            alpha = -solution(4)/p(4)
+            cycle  linesearch
+                else
+             p(4) = 0
+             cycle  linesearch
+        end if
     end if
 
 

@@ -22,7 +22,7 @@ module global
     integer :: i
     real(8) :: phi1, Phi, phi2
         pi = 4.D0*DATAN(1.D0)
-        dt = 0.001
+        dt = 0.0001
         dgamma = 0.00001
         hardening = .false.
      !!!! parameters for constitutive model
@@ -302,7 +302,7 @@ end function haveps
 
 function alphacoeff(theta, epsp, modelnum, G)
 implicit none
-real(8) :: c1= 0.3, c2 = 0.5, c3 = 0.4 ,theta0
+!real(8) :: c1= 0.3, c2 = 0.5, c3 = 0.4 ,theta0
 real(8) :: alphacoeff, theta, epsp, modelnum, G
 
 if (modelnum == 1) then
