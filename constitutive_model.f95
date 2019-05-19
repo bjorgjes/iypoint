@@ -319,7 +319,7 @@ else if (bryter == 2 .or. bryter == 6) then
         dt0 = (strain-epsp)*dt0/(epspi-epsp)*0.5
         end if
         !write(*,*) dt0, sigma, epspi-strain
-        switch = switch +1
+       ! switch = switch +1
         secit = secit +1
         if (secit > 15) then 
             exit iter
@@ -348,7 +348,7 @@ else if (bryter == 2 .or. bryter == 6) then
     if (bryter == 6) then
         if (epsp > gammaskrank) then
             write(8,*) bryter, epspi
-         if (gammaskrank == 0 ) then
+         if (switch  == 0 ) then
             !call Yoshidamodel(tag,La,Dp)
             write(18,*) Dp
             write(18,*) La-id*(La(1,1)+La(2,2)+La(3,3))/3
@@ -379,8 +379,8 @@ else if (bryter == 2 .or. bryter == 6) then
 end if 
 switch = switch +1 
     end do iter
-close(unit=fid+l)
-close(unit=fid+40+l)
+!close(unit=fid+l+600)
+!close(unit=fid+l+800)
 end subroutine constexpr
 
 subroutine elasticsolution(D,tag)

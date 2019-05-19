@@ -23,7 +23,7 @@ module global
     real(8) :: phi1, Phi, phi2
         pi = 4.D0*DATAN(1.D0)
         dt = 0.0001
-        dgamma = 0.00001
+        dgamma = 0.000000001
         hardening = .false.
      !!!! parameters for constitutive model
         c1 = 0.3 

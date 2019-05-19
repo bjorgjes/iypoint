@@ -4,7 +4,7 @@ use constitutive
     implicit none
 
 integer :: part,bryter, k, i,bcond, fid, allocatestatus, fid0
-real(8) :: t1,t2,omp_get_wtime,pw1,pw2,epsp,epsp1,cpstrain, error
+real(8) :: t1,t2,omp_get_wtime,pw1,pw2,epsp,epsp1,cpstrain, error,cpstrain0
 real(8) , dimension(3,3) :: tag, tag1, N
 real(8) , dimension(6) :: propconst
 !real(8) , dimension(:,:), Allocatable ::eul
@@ -13,6 +13,7 @@ real(8),  dimension(:,:), Allocatable :: S0,S01
 real(8), dimension(4) :: solution, initial
 t1 = omp_get_wtime()
 open(unit=11,file="result.txt",status='replace')
+open(unit=5,file="alphacp.txt",status='replace')
 open(unit=3,file="Stress.txt",status='replace')
 open(unit=8,file="eulerangles.txt",status='replace')
 open(unit=13,file="Dp_cp.txt",status='replace')
@@ -58,12 +59,16 @@ if (allocatestatus /= 0) stop "Not enough memory"
 
 
 
-fid0 = 46
+fid0 = 49
 
-initial = (/3.2d-1, 0.5d+0, 0.5d+0, pi/36 /)
-call steepestdecent(solution, initial)
+!initial = (/3.2d-1, 0.5d+0, 0.5d+0, pi/36 /)
+!call steepestdecent(solution, initial)
+c1 = 5
+c2 = 0.5
+c3 = 0.5
+theta0 = pi/10.
 tag = 0
-!epsp = 0
+epsp = 0
 !tag(1,1) = 49.103557586671037
 !tag(2,2) = 49.103557586671037
 !tag(3,3) = 1.1107815788452554E-012
@@ -79,22 +84,27 @@ cpstrain = 0
 pw1 = 0.02
 bcond = 2
 !call constexpr(k,16,bryter, bcond,pw1, tag, epsp, propconst,fid)
-!call newton(k,16,bryter,bcond,F0,Fp0,S0,pw1,cpstrain,propconst,fid)   
+call newton(k,16,bryter,bcond,F0,Fp0,S0,pw1,cpstrain,propconst,fid)   
 tag1 = tag
 epsp1 = epsp
+cpstrain0 = cpstrain
 !write(*,*) cpstrain
-
+dt = 0.00001
 part = 100
 bryter = 6
 call OMP_SET_NUM_THREADS(1)
-!$OMP PARALLEL PRIVATE(propconst,k, tag,epsp,fid,bryter)
+!$OMP PARALLEL PRIVATE(propconst,k, tag,epsp,fid,bryter,cpstrain)
 !$OMP DO
-do k = 1,20
+do k = 1,1
     tag = tag1
-
+cpstrain = cpstrain0
     epsp = epsp1
-    pw1 = 0.02+0.001*k
-    pw2 = 0.0002
+    !if (k<=5 ) then 
+    !pw1 = 0.02+0.00005*k
+    !else
+    !pw1 = 0.02+0.0005*(k-5)
+    !end if
+   pw1 = 0.03
     bcond = 1
     bryter = 6
     fid = fid0
@@ -102,12 +112,13 @@ do k = 1,20
     propconst = (/0.d+0, 0.d+0, 0.d+0, 0.d+0, sin(2*pi*k/part), cos(2*pi*k/part)/)
     !write(*,*) 'start'
     !write(*,*) k
-    !call constexpr(0,16,bryter,bcond,pw1, tag, epsp,propconst,fid)
-   ! write(*,*) tag(1,1), tag(2,2) , k
+    !call constexpr(0,64,bryter,bcond,pw1, tag, epsp,propconst,fid)
+    write(*,*) tag(1,1), tag(2,2) , k
     fid = fid0
-    !call newton(0,16,bryter,bcond,F0,Fp0,S0,pw1,cpstrain,propconst,fid) !
+    call newton(-3,64,bryter,bcond,F0,Fp0,S0,pw1,cpstrain,propconst,fid) !
     tag1 = tag
     epsp1 = epsp
+    cpstrain0 = cpstrain
 end do
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
@@ -221,22 +232,22 @@ if ( norm2(gradient) < 0.000000001 ) then
 end if
 
 call OMP_SET_NUM_THREADS(4)
-!!$OMP PARALLEL PRIVATE(c1,c2,c3, theta0,tempsol)
-!!$OMP DO
+!$OMP PARALLEL PRIVATE(c1,c2,c3, theta0,tempsol)
+!$OMP DO
 do k = 1,4
     tempsol= solution
     
    tempsol(k) = tempsol(k) + dl 
-   !if (k == 3 .and. tempsol(k) > 1) then
-   ! tempsol(k) = solution(k) - dl
-   ! gradient(k) =-(modelerror(tempsol(1), tempsol(2), tempsol(3), tempsol(4))-error)/dl
-   !else 
+   if (k == 3 .and. tempsol(k) > 1) then
+    tempsol(k) = solution(k) - dl
+    gradient(k) =-(modelerror(tempsol(1), tempsol(2), tempsol(3), tempsol(4))-error)/dl
+   else 
    write(*,*) modelerror(tempsol(1), tempsol(2), tempsol(3), tempsol(4))-error
    gradient(k) = (modelerror(tempsol(1), tempsol(2), tempsol(3), tempsol(4))-error)/dl
-   !end if
+   end if
 end do
-!!$OMP END DO NOWAIT
-!!$OMP END PARALLEL
+!$OMP END DO NOWAIT
+!$OMP END PARALLEL
 write(*,*) 'gradient'
 write(*,*) gradient
 !!!! Perform line search

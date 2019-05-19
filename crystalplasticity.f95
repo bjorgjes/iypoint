@@ -118,7 +118,7 @@ subroutine taylor(La,Tag,bryter,bcond,F0i,Fp0i,S0i,pw,cpstrain,Dp,propconst,fid)
     real(8), dimension(6) :: propconst
     ! The percision of the plastic work given in relative fraction
     pwpercision = 0.00000001
-    convcriterion = 0.0000001
+    convcriterion = 0.0000000000001
     centraldiff = 2
     proximity = 0
     !Timeincrement
@@ -131,6 +131,7 @@ subroutine taylor(La,Tag,bryter,bcond,F0i,Fp0i,S0i,pw,cpstrain,Dp,propconst,fid)
     !strainrate
         gammatot = 0
         epsp = cpstrain
+        gammaskrank = cpstrain
     !Copies of the input variables, in order not to update the initial condition when calculating instantaneous yield surface.
         S0 = s0i 
         Fp0 = Fp0i  
@@ -217,7 +218,7 @@ if (bcond == 2) then
 
 end if   
 
-    gammaskrank = 0.0
+   
     
 
  
@@ -246,7 +247,7 @@ case (1)
        do h = 1,4
         sigma(h) = Tag(pos1(h),pos2(h))
        end do
-       write(*,*) sigma , norm2(Lc), epsp
+       !write(*,*) sigma , norm2(Lc), epsp
          minl = minloc(sigma, DIM = 1)
          maxl = maxloc(sigma, DIM = 1)
          if (abs(sigma(minl)) < convcriterion .and. abs(sigma(maxl)) < convcriterion) then
@@ -343,7 +344,7 @@ case (2)
     !write(*,*)  sigma2 , epsp+norm2(Dp)*sqrt(2./3.)*dt0, epsp, norm2(Lc)
     !write(*,*)  sigma2 , norm2(Lc), epsp
   ! write(*,*) tag
-    write(*,*)  sigma2 , norm2(Lc), epspi
+    !write(*,*)  sigma2 , norm2(Lc), epspi
          minl = minloc(sigma2, DIM = 1)
          maxl = maxloc(sigma2, DIM = 1)
          if (abs(sigma2(minl)) < convcriterion .and. abs(sigma2(maxl)) < convcriterion) then
@@ -470,7 +471,7 @@ epspi = epsp+norm2(Dp)*sqrt(2./3.)*dt0
         epsp = epspi
         write(4,*) Cep(1,2,1,2)/75000, epsp
         if (bryter == 5) then
-            if (gammatot > gammaskrank) then
+            if (epsp > gammaskrank) then
                 write(8,*) bryter, gammatoti
                 dot = contract2(La,Dp)
                 dot = dot/norm2(La)/norm2(Dp)
@@ -510,7 +511,7 @@ epspi = epsp+norm2(Dp)*sqrt(2./3.)*dt0
                             acos(contract2(grad,Dp)/norm2(grad)/norm2(Dp))*180/pi, epsp
 
             write(fid+200,*) Tag(1,1), Tag(2,2), Dp(1,1)/ norm2(La),Dp(2,2)/norm2(La)
-            !write(14,*) Tag(1,1), Tag(2,2), Dp2(1,1) /sqrt( Dp2(1,1)**2+Dp2(2,2)**2), Dp2(2,2)/sqrt(Dp2(1,1)**2+Dp2(2,2)**2)
+            write(14,*) Tag(1,1), Tag(2,2), Dp2(1,1) /sqrt( Dp2(1,1)**2+Dp2(2,2)**2), Dp2(2,2)/sqrt(Dp2(1,1)**2+Dp2(2,2)**2)
             write(16,*) Tag(1,1), Tag(2,2), Grad(1,1)/sqrt(Grad(1,1)**2+Grad(2,2)**2),Grad(2,2)/sqrt(Grad(1,1)**2+Grad(2,2)**2)
             
             write(3,*) tag(1,1), epsp
@@ -574,7 +575,7 @@ epspi = epsp+norm2(Dp)*sqrt(2./3.)*dt0
             else if (epspi <= 0.d0 .and. proximity == 1) then 
             dt0 = dt0*1.1
             !dt0 = (pw-gammatot)*dt0/(gammatoti-gammatot) 
-            switch = switch +1
+            !switch = switch +1
             secit = secit +1
             cycle iter
             end if
@@ -587,13 +588,13 @@ epspi = epsp+norm2(Dp)*sqrt(2./3.)*dt0
         epsp = epspi
         La = Lc
         if (bryter == 6) then
-            if (gammatot > gammaskrank) then
-                if (gammaskrank == 0)  then
+            if (epsp > gammaskrank) then
+                if (switch == 0)  then
                     write(13,*) Dp
                     write(13,*) La-id*(La(1,1)+La(2,2)+La(3,3))/3
                 end if
 
-
+                call alphacp(La,Dp,tag)
                 write(8,*) bryter, gammatoti
                 dot = contract2(La,Dp)
                 dot = dot/norm2(La)/norm2(Dp)
@@ -712,7 +713,7 @@ subroutine timestep(Tag, Dp, La, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,S0
  
     real(8) :: phi1, Phi, phi2, det, cons,h, dt0
     real(8) , dimension(3,3)  :: F1, Fp1, Fp1inv, Fe1, Fetr,Fp0inv, Ctr,T1,Ttr,Etr , & 
-                         Schmid,TS,Tint, CS, Tst, Fpint ,Rn,  Rtest,Dpc,Dp
+                         Schmid,TS,Tint, CS, Tst, Fpint ,Rn,  Rtest,Dpc,Dp,Dp2
     real(8) , dimension(3,3), intent(in)  :: La
     real(8) , dimension(3,3), intent(out)  :: Tag
     real(8) , dimension(3,3,nlines) ::   Tagcint, Lc
@@ -794,6 +795,7 @@ subroutine timestep(Tag, Dp, La, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,S0
         countera = countera+1
         end if 
     end do
+    Dpc = Fp1/dt0/nlines
     Fp1 = matmul(id,Fp0(1:3,1:3,j))+ matmul(Fp1,Fp0(1:3,1:3,j))
     
     ! step 7, Check if determinant is 1, if not normalize
@@ -883,7 +885,7 @@ subroutine timestep(Tag, Dp, La, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,S0
     end do
     
     end if 
-    call elastoplasticmoduli(Cepag,T1,Active,tautr,s0,Lc(1:3,1:3,j),transpose(R(1:3,1:3,j)))
+    !call elastoplasticmoduli(Cepag,T1,Active,tautr,s0,Lc(1:3,1:3,j),transpose(R(1:3,1:3,j)))
     if (cons > 0.0000001) then
         write(*,*) 'timestep to large, consistency not achieved 1'
         write(*,*) consis
@@ -909,14 +911,15 @@ subroutine timestep(Tag, Dp, La, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,S0
     call eulang(Rn,phi1,Phi,phi2)
     
     countera = 1
-    do i = 1,12
-        if (Active(i)) then 
-            call slipsys(Schmid,m,n,i)
-            Dpc = Dpc+tautr(i)/abs(tautr(i))*x(countera)*1/2*(Schmid+transpose(schmid))/dt0/nlines
-        countera = countera+1
-        end if 
-    end do
-    Dpc =  matmul(Rtest,matmul(Dpc,transpose(Rtest)))
+    !do i = 1,12
+    !    if (Active(i)) then 
+    !        call slipsys(Schmid,m,n,i)
+    !        Dpc = Dpc+tautr(i)/abs(tautr(i))*x(countera)*1/2*(Schmid+transpose(schmid))/dt0/nlines
+    !    countera = countera+1
+    !    end if 
+    !end do
+    !Dpc =  matmul(Rtest,matmul(Dpc,transpose(Rtest)))
+    !Dpc = matmul(Fp1inv,(Fp1-Fp0(1:3,1:3,j)))/dt0/nlines
     Dp = Dp + matmul(transpose(R(1:3,1:3,j)),matmul(Dpc,R(1:3,1:3,j)))
     
     gammatoti = gammatoti + sum(x)/nlines
@@ -928,7 +931,7 @@ subroutine timestep(Tag, Dp, La, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,S0
     s0in(j,1:12) = s1
     Tagcint(1:3,1:3,j) = matmul(transpose(R(1:3,1:3,j)),matmul(T1,R(1:3,1:3,j)))
     Tag = Tag+Tagcint(1:3,1:3,j)/nlines
-    Cep = Cep +Cepag/nlines
+    !Cep = Cep +Cepag/nlines
     
 end do grains 
 
@@ -1479,3 +1482,75 @@ La(3,3) = La(3,3) + dx(4)
 La(2,2) = La(2,2) + dx(5)
 
 end subroutine eqnsolver
+
+
+subroutine alphacp(D,Dp,Tag)
+    use global
+implicit none
+real(8), dimension(3,3) :: tag, D, Dp, N, Nnorm, Dtan, Ddev, Dptan
+real(8), dimension(3,3,3,3) :: T, P
+integer :: i,j,k,l
+real(8) :: alpha , theta
+
+
+Call hoshfordnormal(tag,N)
+Nnorm = N/norm2(N)
+
+Ddev = D - (D(1,1)+D(2,2)+D(3,3))/3.
+
+do i = 1,3
+    do j = 1,3
+        do k =1,3
+            do l = 1,3
+ T(i,j,k,l) = 1./2.*(kronecker(i,k)*kronecker(j,l)+kronecker(i,l)*kronecker(j,k))-1./3.*(id(i,j)*id(k,l)) &
+             -Nnorm(i,j)*Nnorm(k,l)     
+            end do
+        end do
+    end do
+end do
+
+
+Dtan = 0
+do i = 1,3
+    do j = 1,3
+        do k =1,3
+            do l = 1,3
+               Dtan(i,j) = Dtan(i,j)+ T(i,j,k,l)*D(l,k)
+            end do
+        end do
+    end do
+end do
+Dtan = Dtan/norm2(Dtan)
+do i = 1,3
+    do j = 1,3
+        do k =1,3
+            do l = 1,3
+ P(i,j,k,l) = Dtan(i,j)*Dtan(k,l)     
+            end do
+        end do
+    end do
+end do
+
+Dptan = 0
+do i = 1,3 
+    do j = 1,3
+        do k =1,3
+            do l = 1,3
+               Dptan(i,j) = Dptan(i,j)+ P(i,j,k,l)*Dp(l,k)
+            end do
+        end do
+    end do
+end do
+
+!write(*,*) contract2(Dp,Dtan)/norm2(Dtan)
+
+alpha = norm2(Dptan)/Norm2(Dtan)
+theta = acos(contract2(Ddev,N)/norm2(Ddev)/norm2(N))*180/pi
+write(*,*) alpha, theta, acos(contract2(Dptan,Dtan)/norm2(Dptan)/norm2(Dtan))*180/pi, contract2(Dp,Dtan)/norm2(Dtan)
+write(5,*) alpha, theta
+
+if (acos(contract2(Dptan,Dtan)/norm2(Dptan)/norm2(Dtan))*180/pi > 5.0) then
+    write(*,*) Dp-D
+end if
+
+end subroutine
