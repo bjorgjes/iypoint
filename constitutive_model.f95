@@ -1073,7 +1073,8 @@ end if
     real(8), dimension(6)    :: propconst
     integer                  :: fid , nlines, k, bryter, bcond
     real(8), dimension(9)    :: cptagv
-
+    !character*15 :: filename
+    !threadnum = 1
     !!!! Set model parameters
     c1 = c_1
     c2 = c_2
@@ -1098,33 +1099,44 @@ end if
     !fid = 20
     !call constexpr(0,16,bryter, bcond,pw, tag, epsp, propconst,fid)
 
-
+    
+    !threadnum = omp_get_thread_num()+1 
+    !write(filename,'("stress_cp_",I1,".txt")') threadnum
+    !write(*,*) threadnum, filename
+    
     !!!! Strain path change experiment
     !!!! Open file containing cp data
-    call countlin('stresscp.txt',nlines)
-    open(action='read',unit=17,file="stresscp.txt",status='old')
+    call countlin('stress_cp.txt',nlines)
+    open(action='read',unit=17,file='stress_cp.txt',status='old')
     
     
     modelerror = 0
     bcond = 1
     bryter = 2
     fid = 21
-    do k = 1,20
-        pw = 0.02+0.001*k
+    do k = 1,15
+        if (k<=5) then
+        pw = 0.02+0.00005*k
+        else 
+        pw = 0.02+0.0005*(k-5)
+        end if     
         call constexpr(0,16,bryter,bcond,pw, tag, epsp,propconst,fid)
         devtag = tag - (tag(1,1)+tag(2,2)+tag(3,3))/3
         
         !!!! Check that strain is equal
         read(17,*) cptagv , cpstrain
        
-        if (abs(cpstrain-epsp) > 0.000001) then
+        if (abs(cpstrain-epsp) > 0.0000001) then
             write(*,*) 'unequal strains'
             write(*,*) cpstrain , epsp
         end if 
-        cptag = vec2tens(cptagv)
+        cptag(1,1:3) = cptagv(1:3)
+        cptag(2,1:3) = cptagv(4:6)
+        cptag(3,1:3) = cptagv(7:9)
         devcptag = cptag - (cptag(1,1)+ cptag(2,2) + cptag(3,3))/3
-
+       ! write(*,*) 
         modelerror = modelerror + abs(acos(contract2(devtag,devcptag)/norm2(devtag)/norm2(devcptag)))/nlines
+        !modelerror = modelerror + norm2(cptag-tag)/nlines
         !write(*,*) modelerror, k
     end do 
     close(17) 

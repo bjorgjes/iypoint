@@ -305,12 +305,12 @@ implicit none
 !real(8) :: c1= 0.3, c2 = 0.5, c3 = 0.4 ,theta0
 real(8) :: alphacoeff, theta, epsp, modelnum, G
 
-if (modelnum == 1) then
-    theta0 = pi/18.
-else if (modelnum == 2) then
-    theta0 = pi/18./2.
-end if 
-
+!if (modelnum == 1) then
+!    theta0 = pi/18.
+!else if (modelnum == 2) then
+!    theta0 = pi/18./2.
+!end if 
+!c3 =0.4
 
 if (theta >= 0 .and. theta <= theta0 ) then
         alphacoeff = 1-c1*sqrt(gaveps(epsp)/G)-c2*macauley(haveps(epsp))/G

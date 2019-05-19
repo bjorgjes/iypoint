@@ -59,8 +59,8 @@ if (allocatestatus /= 0) stop "Not enough memory"
 
 
 fid0 = 46
-
-initial = (/3.2d-1, 0.5d+0, 0.5d+0, pi/36 /)
+initial = (/ 5d0, 0.5d+0,  0.5d0,  pi/9 /)
+!initial = (/ 106.77943646646759d0, 0.5d+0,  6.6411292496928384d-2,  0.47405832922910035d+0 /) initial using old2
 call steepestdecent(solution, initial)
 tag = 0
 !epsp = 0
@@ -205,10 +205,10 @@ subroutine steepestdecent(solution, initial)
     implicit none
     real(8) :: error1, error2, tol, error, dl, gamma, beta, alpha
     real(8), dimension(4) :: gradient, gradient1, initial, solution, tempsol,solution1, p
-    integer :: k, i 
+    integer :: k, i , counter
     
 solution = initial
-dl = 0.1
+dl = 0.00001
     !!! calculate gradient 
 error = modelerror(solution(1),solution(2),solution(3), solution(4))
 write(*,*) error
@@ -219,21 +219,21 @@ do i = 1,100
 if ( norm2(gradient) < 0.000000001 ) then
   !  exit
 end if
-
+gradient = 0
 call OMP_SET_NUM_THREADS(4)
 !!$OMP PARALLEL PRIVATE(c1,c2,c3, theta0,tempsol)
 !!$OMP DO
 do k = 1,4
     tempsol= solution
-    
+    !write(*,*) k
    tempsol(k) = tempsol(k) + dl 
-   !if (k == 3 .and. tempsol(k) > 1) then
-   ! tempsol(k) = solution(k) - dl
-   ! gradient(k) =-(modelerror(tempsol(1), tempsol(2), tempsol(3), tempsol(4))-error)/dl
-   !else 
+if (k == 3 .and. tempsol(k) > 1) then
+    tempsol(k) = solution(k) - dl
+    gradient(k) =-(modelerror(tempsol(1), tempsol(2), tempsol(3), tempsol(4))-error)/dl
+   else 
    write(*,*) modelerror(tempsol(1), tempsol(2), tempsol(3), tempsol(4))-error
    gradient(k) = (modelerror(tempsol(1), tempsol(2), tempsol(3), tempsol(4))-error)/dl
-   !end if
+   end if
 end do
 !!$OMP END DO NOWAIT
 !!$OMP END PARALLEL
@@ -242,53 +242,66 @@ write(*,*) gradient
 !!!! Perform line search
 p = -gradient/norm2(gradient)
 
-alpha = 1
-beta = 0.000000001
+alpha = 0.5
+beta = 0.5
 error2 = error
 !write(*,*) error2 - error + alpha*beta*dot_product(p,gradient)
 !write(*,*) p
+counter = 0
 linesearch: do 
     tempsol = solution + alpha*p
-    write(*,*) p
+    write(*,*) p, alpha
     !write(*,*) alpha
     !!!!! check if solution is within range.
 
     if (tempsol(1) < 0 ) then
-        if (solution(1) > 0 ) then
-            alpha = -solution(1)/p(1)
+        if (solution(1) > 0.00000001 ) then
+            alpha = -solution(1)/p(1)-0.00000001
             cycle  linesearch
                 else
              p(1) = 0
+             p = p/norm2(p)
              cycle  linesearch
         end if
     end if
     if (tempsol(2) < 0 ) then
-        if (solution(2) > 0 ) then
-            alpha = -solution(2)/p(2)
+        if (solution(2) > 0.00000001 ) then
+            alpha = -solution(2)/p(2)-0.00000001
             cycle  linesearch
                 else
             p(2) = 0
+            p = p/norm2(p)
             cycle  linesearch
         end if
     end if
     if (tempsol(3) < 0) then
-        if (solution(3) > 0 ) then
-            alpha = -solution(3)/p(3)
+        if (solution(3) > 0.00000001 ) then
+            alpha = -solution(3)/p(3)-0.00000001
             cycle linesearch
             else
                 p(3) = 0
+                p = p/norm2(p)
+                cycle linesearch
         end if
     end if
     if (tempsol(3) > 1) then
-        alpha = 1-solution(3)/p(3)
+        
+        if (solution(3) < 1-0.00001 ) then
+        alpha = (1-solution(3))/p(3)-0.00000001
         cycle linesearch
+        else 
+            p(3) = 0   
+            p = p/norm2(p)
+            cycle linesearch
+        end if
     end if
     if (tempsol(4) < 0) then
-        if (solution(4) > 0 ) then
-            alpha = -solution(4)/p(4)
+        if (solution(4) > 0.00000001 ) then
+            alpha = -solution(4)/p(4)-0.00000001
             cycle  linesearch
                 else
              p(4) = 0
+             p = p/norm2(p)
              cycle  linesearch
         end if
     end if
@@ -296,13 +309,24 @@ linesearch: do
 
     error2 = modelerror(tempsol(1), tempsol(2), tempsol(3), tempsol(4))
   
-write(*,*) error2 - error 
-!- alpha*beta*dot_product(p,gradient) + alpha*beta*dot_product(p,gradient)
-    if (error2 < error ) then
-        write(*,*) error2 - error - alpha*beta*dot_product(p,gradient)
+if (counter <= 10) then
+    if (error2 < error + alpha*beta*dot_product(p,gradient) ) then
+        !write(*,*) error2 - error - alpha*beta*dot_product(p,gradient)
         exit linesearch
     end if
     alpha = alpha/2
+else if (counter > 10 .and. counter <= 20 ) then
+    if (error2 < error + alpha*beta*dot_product(p,gradient) ) then
+        !write(*,*) error2 - error - alpha*beta*dot_product(p,gradient)
+        exit linesearch
+    end if
+    alpha = alpha/4
+
+else if (counter > 20) then 
+    exit linesearch
+
+end if
+counter = counter + 1
 end do linesearch
 
 
