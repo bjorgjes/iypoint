@@ -15,6 +15,7 @@ real(8),  dimension(nlines,12) :: S0i
 real(8), dimension(6) :: propconst
 character*15 :: filename
 character*18 :: filename2
+character*19 :: filenamea
 character*11 :: utskrift1
 bry = 0
 if (bryter == 4) then 
@@ -35,6 +36,9 @@ if (bcond == 1 .and. bryter == 5 .or. bryter == 6) then
     open(unit=fid+200+k, file=filename, status='unknown')
     write(filename2,'("Dp_cp_ang",I2,"_",I2,".txt")') fid , k   
         open(unit=fid+400+k, file=filename2, status='unknown')
+    write(filenamea,'("alphacp_",I3,"_",I2,".txt")') k, 64  
+    open(unit=fid+300+k, file=filenamea, status='unknown')
+
     else if (bcond == 2 .and. bryter == 5 .or. bryter == 6)  then 
     write(filename,'("Dp_cp_",I2,"_",I2,".txt")') fid , 99 
     open(unit=fid+200+k, file=filename, status='unknown')
@@ -594,7 +598,7 @@ epspi = epsp+norm2(Dp)*sqrt(2./3.)*dt0
                     write(13,*) La-id*(La(1,1)+La(2,2)+La(3,3))/3
                 end if
 
-                call alphacp(La,Dp,tag)
+                call alphacp(La,Dp,tag,fid)
                 write(8,*) bryter, gammatoti
                 dot = contract2(La,Dp)
                 dot = dot/norm2(La)/norm2(Dp)
@@ -1484,13 +1488,13 @@ La(2,2) = La(2,2) + dx(5)
 end subroutine eqnsolver
 
 
-subroutine alphacp(D,Dp,Tag)
+subroutine alphacp(D,Dp,Tag,fid)
     use global
 implicit none
-real(8), dimension(3,3) :: tag, D, Dp, N, Nnorm, Dtan, Ddev, Dptan
+real(8), dimension(3,3) :: tag, D, Dp, N, Nnorm, Dtan,DtanNorm, Ddev, Dptan 
 real(8), dimension(3,3,3,3) :: T, P
 integer :: i,j,k,l
-real(8) :: alpha , theta
+real(8) :: alpha , theta, fid
 
 
 Call hoshfordnormal(tag,N)
@@ -1520,12 +1524,12 @@ do i = 1,3
         end do
     end do
 end do
-Dtan = Dtan/norm2(Dtan)
+DtanNorm = Dtan/norm2(Dtan)
 do i = 1,3
     do j = 1,3
         do k =1,3
             do l = 1,3
- P(i,j,k,l) = Dtan(i,j)*Dtan(k,l)     
+ P(i,j,k,l) = DtanNorm(i,j)*DtanNorm(k,l)     
             end do
         end do
     end do
@@ -1547,7 +1551,7 @@ end do
 alpha = norm2(Dptan)/Norm2(Dtan)
 theta = acos(contract2(Ddev,N)/norm2(Ddev)/norm2(N))*180/pi
 write(*,*) alpha, theta, acos(contract2(Dptan,Dtan)/norm2(Dptan)/norm2(Dtan))*180/pi, contract2(Dp,Dtan)/norm2(Dtan)
-write(5,*) alpha, theta
+write(fid+300,*) alpha, theta
 
 if (acos(contract2(Dptan,Dtan)/norm2(Dptan)/norm2(Dtan))*180/pi > 5.0) then
     write(*,*) Dp-D
