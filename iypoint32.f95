@@ -54,19 +54,18 @@ if (allocatestatus /= 0) stop "Not enough memory"
 !!!   bryter = 7 - Performs deformation in either stress or strain controll from an UNDEFORMED crystal to a prescribed plastic strain. Used to calculate yield surfaces. 
 !!!                Writes the calculated stress point to the file "stress.txt"
 !!!
-!!!   bryter = 8 - Performs deformation in either stress or strain controll from an PREDEFORMED crystal to a prescribed plastic strain. Used to calculate instantaneous yield surfaces. 
-!!!                Writes the calculated stress point to the file "stress.txt"
+!!!   bryter = 8 - Performs deformation in either stress or strain controll from an PREDEFORMED crystal to a prescribed plastic strain and then RELAXES. Used to calculate instantaneous yield surfaces. 
+!!!                
 
 
+fid0 = 51
 
-fid0 = 49
-
-initial = (/3.2d0, 0.5d+0, 0.5d+0, pi/9 /)
-call steepestdecent(solution, initial)
-c1 = 5
+!initial = (/3.2d-1, 0.5d+0, 0.5d+0, pi/36 /)
+!call steepestdecent(solution, initial)
+c1 = 6.92795
 c2 = 0.5
-c3 = 0.5
-theta0 = pi/10.
+c3 = 0.5213
+theta0 = 0.53007
 tag = 0
 epsp = 0
 !tag(1,1) = 49.103557586671037
@@ -79,26 +78,30 @@ fid = fid0
 !!propconst = (/0.0, 0.0, 0.0, 0.0, 22, 11/)
 propconst = (/0.0, 0.0, 0.0, 0.0, 1.0, 1.0/)
 bryter = 5
-k = 1
+k = 0
 cpstrain = 0
 pw1 = 0.02
 bcond = 2
 !call constexpr(k,16,bryter, bcond,pw1, tag, epsp, propconst,fid)
-!call newton(0,16,bryter,bcond,F0,Fp0,S0,pw1,cpstrain,propconst,fid)   
+call newton(k,16,bryter,bcond,F0,Fp0,S0,pw1,cpstrain,propconst,fid)   
+bryter = 8
+pw1 = 0.02+0.00010
+bcond = 1
+call newton(k,16,bryter,bcond,F0,Fp0,S0,pw1,cpstrain,propconst,fid)  
+
+
+
 tag1 = tag
 epsp1 = epsp
 cpstrain0 = cpstrain
 !write(*,*) cpstrain
-dt = 0.00001
+dt = 0.000001
 part = 100
-bryter = 6
-F01 = F0
-Fp01 = Fp0
-S01 = S0
-call OMP_SET_NUM_THREADS(7)
-!$OMP PARALLEL PRIVATE(propconst,k, tag,epsp,fid,bryter,cpstrain,S0,Fp0,F0)
+bryter = 2
+call OMP_SET_NUM_THREADS(1)
+!$OMP PARALLEL PRIVATE(propconst,k, tag,epsp,fid,bryter,cpstrain)
 !$OMP DO
-do k = -16,14,2
+do k = 1,20
     tag = tag1
 cpstrain = cpstrain0
     epsp = epsp1
@@ -110,18 +113,18 @@ cpstrain = cpstrain0
     !else
     !pw1 = 0.02+0.0005*(k-5)
     !end if
-   pw1 = 0.03
+    pw1 = 0.02+0.00010001
     bcond = 1
-    bryter = 6
+    bryter = 2
     fid = fid0
      !!propconst = (/0.0, 0.0, 0.0, 0.0, 22, 11/)
     propconst = (/0.d+0, 0.d+0, 0.d+0, 0.d+0, sin(2*pi*k/part), cos(2*pi*k/part)/)
     !write(*,*) 'start'
     !write(*,*) k
     !call constexpr(0,64,bryter,bcond,pw1, tag, epsp,propconst,fid)
-    write(*,*) tag(1,1), tag(2,2) , k
+    !write(*,*) tag(1,1), tag(2,2) , k
     fid = fid0
-    !call newton(k,64,bryter,bcond,F0,Fp0,S0,pw1,cpstrain,propconst,fid) !
+    call newton(k,10,bryter,bcond,F0,Fp0,S0,pw1,cpstrain,propconst,fid) !
     tag1 = tag
     epsp1 = epsp
     !cpstrain0 = cpstrain

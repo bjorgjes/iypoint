@@ -28,7 +28,7 @@ else if (bryter == 7) then
     bry = 2
 else if (bryter == 8) then
     bryter = 4
-    bry = 5
+    bry = 1
 end if
 
 if (bcond == 1 .and. bryter == 5 .or. bryter == 6) then
@@ -68,7 +68,7 @@ La(3,2) = 0
     write(*,*) Tag(1,1), tag(2,2), utskrift1
     if (bry == 1) then ! If one want relaxed state. 
         !Performes relaxation
-        call taylor(La,Tag,3,bcond,F0i,Fp0i,S0i,pw,cpstrain,Dp,propconst,fid)
+        call taylor(La,Tag,3,bcond,F0i,Fp0i,S0i,pw,cpstrain,Dp,propconst,fid) 
     end if
 if (bryter == 2) then
 write(3,*) Tag(1,1), Tag(2,2), k
@@ -81,15 +81,9 @@ if (bry == 2) then
     write(*,*) Tag(1,1), Tag(2,2), k
     bryter = 7
 end if 
-if (bry == 5) then
-    bryter = 6
-    write(11,*) Tag(1,1), Tag(2,2), Dp(1,1)/sqrt(dp(1,1)**2+dp(2,2)**2), dp(2,2)/sqrt(dp(1,1)**2+dp(2,2)**2)
-    !write(11,*) Tag(1,1), Tag(2,2)
-    write(*,*) Tag(1,1), Tag(2,2), Dp(1,1)/sqrt(dp(1,1)**2+dp(2,2)**2), dp(2,2)/sqrt(dp(1,1)**2+dp(2,2)**2)
-    end if 
 !end do
-    if (bryter == 4) then 
-
+    if (bryter == 4 .and. bry == 1) then 
+        bryter = 8
     end if
     !close(unit=fid+600)
     !close(unit=fid+400)
@@ -107,7 +101,7 @@ subroutine taylor(La,Tag,bryter,bcond,F0i,Fp0i,S0i,pw,cpstrain,Dp,propconst,fid)
     real(8) :: phi1, Phi, phi2,dt0, gammatot,pw,gammatoti,gammaskrank,dot, dl,epsp
     real(8) , dimension(3,3)  :: grad,T0 , Dp, Lb, Tagb, La0,Dp2, Lc, tagcc
     real(8), dimension(3,3,3,3) :: Cep                    
-    real(8) , dimension(3,3) :: La
+    real(8) , dimension(3,3) :: La , Lcp
     real(8) , dimension(3,3), intent(out)  :: Tag
     real(8) , dimension(3,3,nlines) ::  F0, F02, Fp0, Fp02, Fp0i,Fp0int,F0i,F0int, Tagc, Tagcint
     real(8),  dimension(nlines,12) :: s0,S0i,S0in, S02
@@ -169,7 +163,7 @@ subroutine taylor(La,Tag,bryter,bcond,F0i,Fp0i,S0i,pw,cpstrain,Dp,propconst,fid)
    
     end do initalize
     
-else if (bryter == 2 .or. bryter == 4 .or. bryter == 6) then
+else if (bryter == 2 .or. bryter == 4 .or. bryter == 6 .or. bryter == 3)  then
     initalize2: do o = 1,nlines ! Loop to calculate values at time 0
     phi1 = eul(o,1)
     phi = eul(o,2)
@@ -182,19 +176,19 @@ else if (bryter == 2 .or. bryter == 4 .or. bryter == 6) then
     end do initalize2
     
     
-else if (bryter == 3 ) then
-    initalize3: do o = 1,nlines ! Loop to calculate values at time 0
-    phi1 = eul(o,1)
-    phi = eul(o,2)
-    phi2 = eul(o,3)
-    
-    !!!!!! Variable assignments end
-    ! Calculate rotation matrix
-    call rotmat(phi1,Phi,phi2,R(1:3,1:3,o))
-    
-    
-    end do initalize3
-    write(*,*) bryter
+!else if (bryter == 3 ) then
+!    initalize3: do o = 1,nlines ! Loop to calculate values at time 0
+!    phi1 = eul(o,1)
+!    phi = eul(o,2)
+!    phi2 = eul(o,3)
+!    
+!    !!!!!! Variable assignments end
+!    ! Calculate rotation matrix
+!    call rotmat(phi1,Phi,phi2,R(1:3,1:3,o))
+!    
+!    
+!    end do initalize3
+!    write(*,*) bryter
     end if 
     pos1 = (/1, 1, 2, 3, 2, 1/)
     pos2 =(/2, 3, 3, 3, 2, 1/)
@@ -247,7 +241,7 @@ case (1)
     Lc = La
     boundarycond: do  while (nit < 25)  
     
-       call timestep(Tag, Dp, Lc, gammatot, gammatoti, Fp0, Fp0int, F0, F0int,S0in,s0,dt0,Cep)
+       call timestep(Tag, Dp, Lc, gammatot, gammatoti, Fp0, Fp0int, F0, F0int,S0in,s0,dt0,Cep,Lcp)
        
        do h = 1,4
         sigma(h) = Tag(pos1(h),pos2(h))
@@ -274,7 +268,7 @@ case (1)
                 Lb(pos1(p),pos2(p)) = Lc(pos1(p),pos2(p)) + dl 
                 end if
 
-                call timestep(Tagb, Dp, Lb, gammatot, gammatoti, Fp0, Fp0int, F0, F0int,S0in,s0,dt0,Cep)
+                call timestep(Tagb, Dp, Lb, gammatot, gammatoti, Fp0, Fp0int, F0, F0int,S0in,s0,dt0,Cep,Lcp)
                 Lb = Lc
                 if (pos1(p) /= pos2(p)) then
                 Lb(pos1(p),pos2(p)) = Lc(pos1(p),pos2(p)) - dl
@@ -283,7 +277,7 @@ case (1)
                 Lb(pos1(p),pos2(p)) = Lc(pos1(p),pos2(p)) - dl 
                 end if
 
-                call timestep(Tagcc, Dp, Lb, gammatot, gammatoti, Fp0, Fp0int, F0, F0int,S0in,s0,dt0,Cep)
+                call timestep(Tagcc, Dp, Lb, gammatot, gammatoti, Fp0, Fp0int, F0, F0int,S0in,s0,dt0,Cep,Lcp)
             
                 do k = 1,4
                 jacob(k,p) = (Tagb(pos1(k),pos2(k))-Tagcc(pos1(k),pos2(k)))/dl/2
@@ -297,7 +291,7 @@ case (1)
                 Lb(pos1(p),pos2(p)) = Lc(pos1(p),pos2(p)) + dl 
                 end if
 
-                call timestep(Tagb, Dp, Lb, gammatot, gammatoti, Fp0, Fp0int, F0, F0int,S0in,s0,dt0,Cep)
+                call timestep(Tagb, Dp, Lb, gammatot, gammatoti, Fp0, Fp0int, F0, F0int,S0in,s0,dt0,Cep,Lcp)
                 do k = 1,4
                 jacob(k,p) = (Tagb(pos1(k),pos2(k))-Tag(pos1(k),pos2(k)))/dl
                 end do
@@ -338,7 +332,7 @@ case (2)
    epspi = epsp
   
     
-    call timestep(Tag, Dp, Lc, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,S0in,s0,dt0,Cep)
+    call timestep(Tag, Dp, Lc, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,S0in,s0,dt0,Cep,Lcp)
    
     do h = 1,5
         sigma2(h) = Tag(pos1(h),pos2(h))-propconst(h)*Tag(pos1(6),pos2(6))
@@ -369,7 +363,7 @@ case (2)
                 Lb(pos1(p),pos2(p)) = Lc(pos1(p),pos2(p)) + dl 
                 end if
 
-                call timestep(Tagb, Dp, Lb, gammatot, gammatoti, Fp0, Fp0int, F0, F0int,S0in,s0,dt0,Cep)
+                call timestep(Tagb, Dp, Lb, gammatot, gammatoti, Fp0, Fp0int, F0, F0int,S0in,s0,dt0,Cep,Lcp)
                 Lb = Lc
                 if (pos1(p) /= pos2(p)) then
                 Lb(pos1(p),pos2(p)) = Lc(pos1(p),pos2(p)) - dl
@@ -378,7 +372,7 @@ case (2)
                 Lb(pos1(p),pos2(p)) = Lc(pos1(p),pos2(p)) - dl 
                 end if
 
-                call timestep(Tagcc, Dp, Lb, gammatot, gammatoti, Fp0, Fp0int, F0, F0int,S0in,s0,dt0,Cep)
+                call timestep(Tagcc, Dp, Lb, gammatot, gammatoti, Fp0, Fp0int, F0, F0int,S0in,s0,dt0,Cep,Lcp)
                 do k = 1,5
             jacob2(k,p) = ((Tagb(pos1(k),pos2(k)) - propconst(k)*Tagb(pos1(6),pos2(6))) - &
              (Tagcc(pos1(k),pos2(k))-propconst(k)*Tagcc(pos1(6),pos2(6))))/dl/2
@@ -393,7 +387,7 @@ case (2)
                 Lb(pos1(p),pos2(p)) = Lc(pos1(p),pos2(p)) + dl 
                 end if
 
-                call timestep(Tagb, Dp, Lb, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,S0in,s0,dt0,Cep)
+                call timestep(Tagb, Dp, Lb, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,S0in,s0,dt0,Cep,Lcp)
                 do k = 1,5
                 jacob2(k,p) = ((Tagb(pos1(k),pos2(k))-propconst(k)*Tagb(pos1(6),pos2(6)))- &
                 (Tag(pos1(k),pos2(k))-propconst(k)*tag(pos1(6),pos2(6))))/dl
@@ -427,7 +421,7 @@ case (2)
    end do boundary2
 
 case (3)
-    call timestep(Tag, Dp, La, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,S0in,s0,dt0,Cep)
+    call timestep(Tag, Dp, La, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,S0in,s0,dt0,Cep,Lcp)
     write(*,*) Tag(1,1), Tag(2,2), epsp+norm2(Dp)*sqrt(2./3.)*dt0
 end select
  
@@ -519,7 +513,8 @@ epspi = epsp+norm2(Dp)*sqrt(2./3.)*dt0
             write(14,*) Tag(1,1), Tag(2,2), Dp2(1,1) /sqrt( Dp2(1,1)**2+Dp2(2,2)**2), Dp2(2,2)/sqrt(Dp2(1,1)**2+Dp2(2,2)**2)
             write(16,*) Tag(1,1), Tag(2,2), Grad(1,1)/sqrt(Grad(1,1)**2+Grad(2,2)**2),Grad(2,2)/sqrt(Grad(1,1)**2+Grad(2,2)**2)
             
-            write(3,*) tag(1,1), epsp
+            ! Used to perform uniaxial tensile test. 
+            !write(3,*) tag(1,1), epsp
             !
             end if
         end if 
@@ -641,7 +636,7 @@ epspi = epsp+norm2(Dp)*sqrt(2./3.)*dt0
             !write(fid+200,*) Tag(1,1), Tag(2,2), Dp(1,1)/norm2(La) ,Dp(2,2)/norm2(La)
             !write(14,*) Tag(1,1), Tag(2,2), Dp2(1,1) /sqrt( Dp2(1,1)**2+Dp2(2,2)**2), Dp2(2,2)/sqrt(Dp2(1,1)**2+Dp2(2,2)**2)
             write(16,*) Tag(1,1), Tag(2,2), Grad(1,1)/sqrt(Grad(1,1)**2+Grad(2,2)**2),Grad(2,2)/sqrt(Grad(1,1)**2+Grad(2,2)**2)
-            write(3,*) tag(1,1) , gammatot
+        
             end if
         end if 
         
@@ -653,9 +648,9 @@ epspi = epsp+norm2(Dp)*sqrt(2./3.)*dt0
 
             write(fid+200,*) Tag(1,1), Tag(2,2), Dp(1,1)/norm2(La) ,Dp(2,2)/norm2(La)
             write(12,*) tag, epsp
-            Fp0i = Fp0
-            F0i  = F0
-            S0i = S0 
+            !Fp0i = Fp0
+            !F0i  = F0
+            !S0i = S0 
             cpstrain = epsp
             exit iter
         else if (pw == 0 .and. epsp <= pwpercision .and. epsp > 0) then
@@ -684,7 +679,7 @@ epspi = epsp+norm2(Dp)*sqrt(2./3.)*dt0
             dt0 = 0.00001
         do i = 1,10
             
-            call timestep(Tag, Dp, -La, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,S0in,s0,dt0,Cep)
+            call timestep(Tag, Dp, -La, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,S0in,s0,dt0,Cep,Lcp)
             
             !if (sum(abs(x)) == 0) then 
             F0 = F0int
@@ -711,14 +706,14 @@ epspi = epsp+norm2(Dp)*sqrt(2./3.)*dt0
 
 
 
-subroutine timestep(Tag, Dp, La, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,S0in,s0,dt0,Cep)
+subroutine timestep(Tag, Dp, La, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,S0in,s0,dt0,Cep,Lcp)
     implicit none
     
     !Declear all variables
  
     real(8) :: phi1, Phi, phi2, det, cons,h, dt0
     real(8) , dimension(3,3)  :: F1, Fp1, Fp1inv, Fe1, Fetr,Fp0inv, Ctr,T1,Ttr,Etr , & 
-                         Schmid,TS,Tint, CS, Tst, Fpint ,Rn,  Rtest,Dpc,Dp,Dp2
+                         Schmid,TS,Tint, CS, Tst, Fpint ,Rn,  Rtest,Dpc,Dp,Lcp, Lcpc
     real(8) , dimension(3,3), intent(in)  :: La
     real(8) , dimension(3,3), intent(out)  :: Tag
     real(8) , dimension(3,3,nlines) ::   Tagcint, Lc
@@ -749,7 +744,7 @@ subroutine timestep(Tag, Dp, La, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,S0
      ! Rotate velocity gradient to crystal coordinate 
     Lc(1:3,1:3,j) = matmul(R(1:3,1:3,j),matmul(La,transpose(R(1:3,1:3,j))))
     Dpc = 0
-    
+    Lcp = 0
     F1 = matmul(F0(1:3,1:3,j),(id + Lc(1:3,1:3,j)*dt0))
     !Step 1, Calculate trial elastic strain
     
@@ -800,7 +795,7 @@ subroutine timestep(Tag, Dp, La, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,S0
         countera = countera+1
         end if 
     end do
-   ! Dpc = Fp1/dt0/nlines
+   Dpc = 1./2.*(Fp1 + transpose(Fp1))/dt0/nlines
     Fp1 = matmul(id,Fp0(1:3,1:3,j))+ matmul(Fp1,Fp0(1:3,1:3,j))
     
     ! step 7, Check if determinant is 1, if not normalize
@@ -916,15 +911,19 @@ subroutine timestep(Tag, Dp, La, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,S0
     call eulang(Rn,phi1,Phi,phi2)
     
     countera = 1
+
     do i = 1,12
         if (Active(i)) then 
             call slipsys(Schmid,m,n,i)
-            Dpc = Dpc+tautr(i)/abs(tautr(i))*x(countera)*1/2*(Schmid+transpose(schmid))/dt0/nlines
+           ! Dpc = Dpc+tautr(i)/abs(tautr(i))*x(countera)*1./2.*(Schmid+transpose(schmid))/dt0/nlines
+            Lcpc = Lcpc+tautr(i)/abs(tautr(i))*x(countera)*Schmid/dt0/nlines
         countera = countera+1
         end if 
     end do
     Dpc =  matmul(Rtest,matmul(Dpc,transpose(Rtest)))
+    Lcpc =  matmul(Rtest,matmul(Dpc,transpose(Rtest)))
     !Dpc = matmul(Fp1inv,(Fp1-Fp0(1:3,1:3,j)))/dt0/nlines
+    Lcp = Lcp +  matmul(transpose(R(1:3,1:3,j)),matmul(Lcpc,R(1:3,1:3,j)))
     Dp = Dp + matmul(transpose(R(1:3,1:3,j)),matmul(Dpc,R(1:3,1:3,j)))
     
     gammatoti = gammatoti + sum(x)/nlines
@@ -937,7 +936,7 @@ subroutine timestep(Tag, Dp, La, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,S0
     Tagcint(1:3,1:3,j) = matmul(transpose(R(1:3,1:3,j)),matmul(T1,R(1:3,1:3,j)))
     Tag = Tag+Tagcint(1:3,1:3,j)/nlines
     !Cep = Cep +Cepag/nlines
-    
+    d
 end do grains 
 
 end subroutine timestep
@@ -1115,7 +1114,7 @@ end subroutine sincr
 !! Subroutine for calculation of the isotropic elastic constant
 subroutine elasticconstant(Chook, mu)
        implicit none
-       real(8), dimension(3,3) :: La,Dp,tag,F,E
+       real(8), dimension(3,3) :: La,Dp,tag,F,E,Lcp
        real(8) :: gammatot,gammatoti, dt0, mu , lambda
        real(8) , dimension(3,3,nlines)  :: Fp0,F0,Fp0i,F0i
        real(8),  dimension(nlines,12) :: S0,S0i
@@ -1155,7 +1154,7 @@ subroutine elasticconstant(Chook, mu)
                gammatoti = 0   
                n = 1
                dt0 = 0.00001
-               call timestep(Tag, Dp, La, gammatot, gammatoti , Fp0, Fp0i, F0, F0i,S0i,s0,dt0,Cep)
+               call timestep(Tag, Dp, La, gammatot, gammatoti , Fp0, Fp0i, F0, F0i,S0i,s0,dt0,Cep,Lcp)
                F = id + La*dt0
                E = 1./2.*(matmul(transpose(F),F)-id)
                mu =  1./2.*(tag(3,3)-tag(1,1))/(E(3,3)-E(1,1))
@@ -1547,15 +1546,11 @@ do i = 1,3
     end do
 end do
 
-!write(*,*) contract2(Dp,Dtan)/norm2(Dtan)
+
 
 alpha = norm2(Dptan)/Norm2(Dtan)
 theta = acos(contract2(Ddev,N)/norm2(Ddev)/norm2(N))*180/pi
-write(*,*) alpha, theta, acos(contract2(Dptan,Dtan)/norm2(Dptan)/norm2(Dtan))*180/pi, contract2(Dp,Dtan)/norm2(Dtan)
+!write(*,*) alpha, theta, acos(contract2(Dptan,Dtan)/norm2(Dptan)/norm2(Dtan))*180/pi, contract2(Dp,Dtan)/norm2(Dtan)
 write(fid+300,*) alpha, theta
-
-if (acos(contract2(Dptan,Dtan)/norm2(Dptan)/norm2(Dtan))*180/pi > 5.0) then
-    write(*,*) Dp-D
-end if
 
 end subroutine

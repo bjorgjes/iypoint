@@ -355,7 +355,7 @@ else if (bryter == 2 .or. bryter == 6) then
          end if
         write(11,*) Tag(1,1), tag(2,2), Tag(1,3),Tag(1,2), Tag(2,3), Tag(3,3),  epsp
         !call Yoshidamodel(tag,La,Dp)
-        !call hoshfordnormal(tag,N)
+        call hoshfordnormal(tag,N)
         !write(fid+800+l,*) acos(contract2(La,Dp)/norm2(La)/norm2(Dp))*180/pi, acos(contract2(N,Dp)/norm2(N)/norm2(Dp))*180/pi, epsp
 
 
