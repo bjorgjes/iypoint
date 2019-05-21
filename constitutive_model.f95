@@ -1106,8 +1106,8 @@ end if
     
     !!!! Strain path change experiment
     !!!! Open file containing cp data
-    call countlin('stress_cp.txt',nlines)
-    open(action='read',unit=17,file='stress_cp.txt',status='old')
+    call countlin('stress_cp_final.txt',nlines)
+    open(action='read',unit=17,file='stress_cp_final.txt',status='old')
     
     
     modelerror = 0
@@ -1135,7 +1135,11 @@ end if
         cptag(3,1:3) = cptagv(7:9)
         devcptag = cptag - (cptag(1,1)+ cptag(2,2) + cptag(3,3))/3
        ! write(*,*) 
+        if (contract2(devtag,devcptag)/norm2(devtag)/norm2(devcptag) <= 1) then 
         modelerror = modelerror + abs(acos(contract2(devtag,devcptag)/norm2(devtag)/norm2(devcptag)))/nlines
+        elseif (contract2(devtag,devcptag)/norm2(devtag)/norm2(devcptag) > 1) then
+            modelerror = modelerror + abs(acos(2-contract2(devtag,devcptag)/norm2(devtag)/norm2(devcptag)))/nlines
+        end if
         !modelerror = modelerror + norm2(cptag-tag)/nlines
         !write(*,*) modelerror, k
     end do 

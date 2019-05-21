@@ -61,8 +61,8 @@ if (allocatestatus /= 0) stop "Not enough memory"
 
 fid0 = 49
 
-!initial = (/3.2d-1, 0.5d+0, 0.5d+0, pi/36 /)
-!call steepestdecent(solution, initial)
+initial = (/3.2d0, 0.5d+0, 0.5d+0, pi/9 /)
+call steepestdecent(solution, initial)
 c1 = 5
 c2 = 0.5
 c3 = 0.5
@@ -79,12 +79,12 @@ fid = fid0
 !!propconst = (/0.0, 0.0, 0.0, 0.0, 22, 11/)
 propconst = (/0.0, 0.0, 0.0, 0.0, 1.0, 1.0/)
 bryter = 5
-
+k = 1
 cpstrain = 0
 pw1 = 0.02
 bcond = 2
 !call constexpr(k,16,bryter, bcond,pw1, tag, epsp, propconst,fid)
-call newton(k,16,bryter,bcond,F0,Fp0,S0,pw1,cpstrain,propconst,fid)   
+!call newton(0,16,bryter,bcond,F0,Fp0,S0,pw1,cpstrain,propconst,fid)   
 tag1 = tag
 epsp1 = epsp
 cpstrain0 = cpstrain
@@ -92,13 +92,19 @@ cpstrain0 = cpstrain
 dt = 0.00001
 part = 100
 bryter = 6
-call OMP_SET_NUM_THREADS(1)
-!$OMP PARALLEL PRIVATE(propconst,k, tag,epsp,fid,bryter,cpstrain)
+F01 = F0
+Fp01 = Fp0
+S01 = S0
+call OMP_SET_NUM_THREADS(7)
+!$OMP PARALLEL PRIVATE(propconst,k, tag,epsp,fid,bryter,cpstrain,S0,Fp0,F0)
 !$OMP DO
-do k = 1,1
+do k = -16,14,2
     tag = tag1
 cpstrain = cpstrain0
     epsp = epsp1
+    S0 = s01
+    Fp0 = Fp01
+    F0 = F01
     !if (k<=5 ) then 
     !pw1 = 0.02+0.00005*k
     !else
@@ -115,10 +121,10 @@ cpstrain = cpstrain0
     !call constexpr(0,64,bryter,bcond,pw1, tag, epsp,propconst,fid)
     write(*,*) tag(1,1), tag(2,2) , k
     fid = fid0
-    call newton(-3,64,bryter,bcond,F0,Fp0,S0,pw1,cpstrain,propconst,fid) !
+    !call newton(k,64,bryter,bcond,F0,Fp0,S0,pw1,cpstrain,propconst,fid) !
     tag1 = tag
     epsp1 = epsp
-    cpstrain0 = cpstrain
+    !cpstrain0 = cpstrain
 end do
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
@@ -219,7 +225,7 @@ subroutine steepestdecent(solution, initial)
     integer :: k, i , counter
     
 solution = initial
-dl = 0.00001
+dl = 0.000001
     !!! calculate gradient 
 error = modelerror(solution(1),solution(2),solution(3), solution(4))
 write(*,*) error
@@ -231,9 +237,9 @@ if ( norm2(gradient) < 0.000000001 ) then
   !  exit
 end if
 gradient = 0
-call OMP_SET_NUM_THREADS(4)
-!$OMP PARALLEL PRIVATE(c1,c2,c3, theta0,tempsol)
-!$OMP DO
+!call OMP_SET_NUM_THREADS(1)
+!!$OMP PARALLEL PRIVATE(c1,c2,c3, theta0,tempsol)
+!!$OMP DO
 do k = 1,4
     tempsol= solution
     !write(*,*) k
@@ -246,8 +252,8 @@ if (k == 3 .and. tempsol(k) > 1) then
    gradient(k) = (modelerror(tempsol(1), tempsol(2), tempsol(3), tempsol(4))-error)/dl
    end if
 end do
-!$OMP END DO NOWAIT
-!$OMP END PARALLEL
+!!$OMP END DO NOWAIT
+!!$OMP END PARALLEL
 write(*,*) 'gradient'
 write(*,*) gradient
 !!!! Perform line search

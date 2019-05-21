@@ -13,8 +13,8 @@ integer  :: bryter
 real(8) , dimension(3,3,nlines)  :: Fp0i,F0i
 real(8),  dimension(nlines,12) :: S0i
 real(8), dimension(6) :: propconst
-character*15 :: filename
-character*18 :: filename2
+character*16 :: filename
+character*19 :: filename2
 character*19 :: filenamea
 character*11 :: utskrift1
 bry = 0
@@ -32,9 +32,9 @@ else if (bryter == 8) then
 end if
 
 if (bcond == 1 .and. bryter == 5 .or. bryter == 6) then
-    write(filename,'("Dp_cp_",I2,"_",I2,".txt")') fid , k  
+    write(filename,'("Dp_cp_",I2,"_",I3,".txt")') fid , k  
     open(unit=fid+200+k, file=filename, status='unknown')
-    write(filename2,'("Dp_cp_ang",I2,"_",I2,".txt")') fid , k   
+    write(filename2,'("Dp_cp_ang",I2,"_",I3,".txt")') fid , k   
         open(unit=fid+400+k, file=filename2, status='unknown')
     write(filenamea,'("alphacp_",I3,"_",I2,".txt")') k, 64  
     open(unit=fid+300+k, file=filenamea, status='unknown')
@@ -91,8 +91,9 @@ if (bry == 5) then
     if (bryter == 4) then 
 
     end if
-    close(unit=fid+60)
-    close(unit=fid+20)
+    !close(unit=fid+600)
+    !close(unit=fid+400)
+    close(unit = fid+300)
 end subroutine newton
 
 
@@ -799,7 +800,7 @@ subroutine timestep(Tag, Dp, La, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,S0
         countera = countera+1
         end if 
     end do
-    Dpc = Fp1/dt0/nlines
+   ! Dpc = Fp1/dt0/nlines
     Fp1 = matmul(id,Fp0(1:3,1:3,j))+ matmul(Fp1,Fp0(1:3,1:3,j))
     
     ! step 7, Check if determinant is 1, if not normalize
@@ -915,14 +916,14 @@ subroutine timestep(Tag, Dp, La, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,S0
     call eulang(Rn,phi1,Phi,phi2)
     
     countera = 1
-    !do i = 1,12
-    !    if (Active(i)) then 
-    !        call slipsys(Schmid,m,n,i)
-    !        Dpc = Dpc+tautr(i)/abs(tautr(i))*x(countera)*1/2*(Schmid+transpose(schmid))/dt0/nlines
-    !    countera = countera+1
-    !    end if 
-    !end do
-    !Dpc =  matmul(Rtest,matmul(Dpc,transpose(Rtest)))
+    do i = 1,12
+        if (Active(i)) then 
+            call slipsys(Schmid,m,n,i)
+            Dpc = Dpc+tautr(i)/abs(tautr(i))*x(countera)*1/2*(Schmid+transpose(schmid))/dt0/nlines
+        countera = countera+1
+        end if 
+    end do
+    Dpc =  matmul(Rtest,matmul(Dpc,transpose(Rtest)))
     !Dpc = matmul(Fp1inv,(Fp1-Fp0(1:3,1:3,j)))/dt0/nlines
     Dp = Dp + matmul(transpose(R(1:3,1:3,j)),matmul(Dpc,R(1:3,1:3,j)))
     
@@ -1493,8 +1494,8 @@ subroutine alphacp(D,Dp,Tag,fid)
 implicit none
 real(8), dimension(3,3) :: tag, D, Dp, N, Nnorm, Dtan,DtanNorm, Ddev, Dptan 
 real(8), dimension(3,3,3,3) :: T, P
-integer :: i,j,k,l
-real(8) :: alpha , theta, fid
+integer :: i,j,k,l, fid
+real(8) :: alpha , theta
 
 
 Call hoshfordnormal(tag,N)
