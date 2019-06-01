@@ -96,8 +96,8 @@ module constitutive
         
         end if   
     end select    
-    
-            dt0 = dt/10.
+    dt0 = dt
+            !dt0 = dt/10.
 iter: do while (switch < 10000000)
 
 
@@ -199,11 +199,11 @@ case (2)
        
          minl = minloc(sigma2, DIM = 1)
          maxl = maxloc(sigma2, DIM = 1)
-         if (abs(sigma2(minl)) < 0.00000000001 .and. abs(sigma2(maxl)) < 0.00000000001) then
+         if (abs(sigma2(minl)) < 0.0000000001 .and. abs(sigma2(maxl)) < 0.0000000001) then
           consistentcontroll = consistent
           !write(*,*) tagi(1,1), tagi(2,2), epspi,consistent, consistentcontroll
            !write(*,*) sigma2 , epspi
-             write(*,*) tagi(1,1), tagi(2,2)
+             !write(*,*) tagi(1,1), tagi(2,2)
             exit boundary2
          end if 
      do p = 1,5
@@ -823,7 +823,7 @@ end if
       real(8) :: h ,h2, G,epspelpred, theta, alpha, sigma, sigma0, dt0, epsp, lambdadot, lambdadot2
       real(8) :: feps,feps2 , sigmacheck, dt1,epsp2, sigmaelpred, dl ,modelnum
       real(8) , dimension(6,6) :: Chook
-      integer :: i,j,k,l,p,q,Info
+      integer :: i,j,k,l,p,q,Info, minl, maxl
       logical :: consistent
       real(8) , dimension(6) :: Dvec, hvec, hvec2
       real(8) , dimension(7) :: newtvec, solution,IPIV
@@ -948,7 +948,12 @@ hvec = tens2vec(tag1)-tens2vec(tagcheck) + &
 
 newtvec(1:6) = hvec
 newtvec(7) = feps
-if (norm2(newtvec) < 0.000001) then
+
+minl = minloc(newtvec, DIM = 1)
+maxl = maxloc(newtvec, DIM = 1)
+ !if (abs(newtvec(minl)) < 0.000001 .and. abs(newtvec(maxl)) < 0.000001) then
+if (norm2(newtvec) < 0.00000001) then
+    !write(*,*) q
     exit newtonraphson
 end if
 !write(*,*) newtvec
@@ -1059,10 +1064,10 @@ solution = -newtvec
     lambdadot = lambdadot+solution(7)
 !write(*,*) solution
     
-    if (q > 20 ) then
+    if (q > 15 ) then
         write(*,*) 'not fully converged solution'
-        write(*,*) newtvec
-        exit 
+        write(*,*) newtvec, norm2(newtvec)
+        exit newtonraphson
     end if
     q = q+1
 end do newtonraphson
@@ -1167,3 +1172,343 @@ end if
 end function modelerror
 
 end module constitutive
+
+
+
+subroutine yoshi4(tag,D,epsp,dt0,consistent,Dp)
+    use crystalplasticity
+    use mathmod
+    use global
+      implicit none
+
+      real(8), dimension(3,3,3,3) :: Cep, dyadic, T, CT,Cel4
+      real(8), dimension(3,3) :: N, tag, dtag,Nnorm, Dtan, tagint, Ddev, tagcheck,tag1, Dp, De, Dcorr
+      real(8) :: h ,h2, G,epspelpred, theta, alpha, sigma, sigma0, dt0, epsp, lambdadot, lambdadot2
+      real(8) :: feps,feps2 , sigmacheck, dt1,epsp2, sigmaelpred, dl ,modelnum
+      real(8) , dimension(6,6) :: Chook
+      integer :: i,j,k,l,p,q,Info, minl, maxl
+      logical :: consistent
+      real(8) , dimension(6) :: Dvec, hvec, hvec2
+      real(8) , dimension(7) :: newtvec, solution,IPIV
+      real(8) , dimension(7,7) :: Jacobi
+      integer , dimension(6) :: pos1, pos2
+      real(8), intent(in), dimension(3,3) :: D
+      !real(8) :: c1= 0.3, c2 = 0.5, c3 = 0.4 ,theta0 
+
+      modelnum = 2
+        pos1 = (/1, 2, 3, 2, 1, 1/)
+        pos2 = (/1, 2, 3, 3, 3, 2/)
+      dl = 0.000001
+     
+      sigma0 = gaveps(epsp)
+      h = haveps(epsp)
+      dtag = 0
+      Dp = 0
+
+
+   
+      call Elasticconstant(Chook,G)
+      !write(*,*) G
+      call eqvstress(tag,sigma)
+      
+      Call hoshfordnormal(tag,N)
+      
+  
+ 
+ 
+  
+
+ !! Convert 6x6 elastic matrix to 4th order tensor
+  do i = 1,3
+      do j = 1,3
+          do k =1,3
+              do l = 1,3
+                  Cel4(i,j,k,l) = Chook(1,2)*kronecker(i,j)*kronecker(k,l)+(Chook(1,1)-Chook(1,2))/2* & 
+                                  (kronecker(i,k)*kronecker(j,l)+kronecker(i,l)*kronecker(j,k))
+              end do
+          end do
+      end do
+  end do
+  
+!!!! Calculate elastic predictor    
+  do i = 1,3
+    do j = 1,3
+        do k =1,3
+            do l = 1,3
+                dtag(i,j) = dtag(i,j) + Cel4(i,j,k,l)*D(l,k)
+            end do
+        end do
+    end do
+end do
+!!! Check for unloading
+if (contract2(dtag,N) < 0 ) then
+  ! write(*,*) 'Unloading'
+   
+end if 
+!!! update stress and calculate equivalent stress
+tagcheck = tag+dtag*dt0
+call eqvstress(tagcheck,sigmaelpred)
+
+
+!!!! Check if yield strength is surpassed, if the yield stress is reached plastic correction is needed.
+if (sigmaelpred < gaveps(epsp)) then
+tag = tagcheck
+
+
+
+else if (sigmaelpred >= gaveps(epsp)) then
+q = 0
+
+! Initial guess, elastic predictor
+newtvec = 1
+Ddev = D - id*(D(1,1)+D(2,2)+D(3,3))/3    
+tag1 = tag
+epsp2 = epsp
+Call hoshfordnormal(tag1,N)
+!!! This equation is a rough estimate, believe voigt notation is not appropriate for the unsymmetric N
+lambdadot = contract2(N,vec2tens(matmul(Chook,(/ D(1,1), D(2,2),D(3,3),2*D(2,3), 2*D(1,3),2*D(1,2) /))))&
+/(contract2(N,vec2tens(matmul(Chook,tens2vec(N))))+sqrt(2./3.)*norm2(N)*h)
+
+
+!!! performs newton-raphson until solution is sufficently converged. 
+do while (norm2(newtvec) > 0.000000001)
+
+    Call hoshfordnormal(tag1,N)
+    !call grad_phi(N,tag1,9.d0)
+    Nnorm = N/norm2(N)
+    !Calculate theta
+    
+    theta = acos(contract2(D-id*(D(1,1)+D(2,2)+D(3,3))/3.,N)/norm2(D-id*(D(1,1)+D(2,2)+D(3,3))/3.)/Norm2(N))
+    
+    
+    
+        do i = 1,3
+            do j = 1,3
+                do k =1,3
+                    do l = 1,3
+                        T(i,j,k,l) = 1./2.*(kronecker(i,k)*kronecker(j,l)+kronecker(i,l)*kronecker(j,k))-1./3.*(id(i,j)*id(k,l)) &
+                                    -Nnorm(i,j)*Nnorm(k,l)     
+                    end do
+                end do
+            end do
+        end do
+       Dtan = 0
+        do i = 1,3
+            do j = 1,3
+                do k =1,3
+                    do l = 1,3
+                       Dtan(i,j) = Dtan(i,j)+ T(i,j,k,l)*Ddev(l,k)
+                    end do
+                end do
+            end do
+        end do
+    !lambdadot = contract2(N,vec2tens(matmul(Chook,tens2vec(D))))&
+    !/(contract2(N,vec2tens(matmul(Chook,tens2vec(N))))+sqrt(2./3.)*norm2(N)*h)
+    
+        epsp2 = epsp + lambdadot*sqrt(2./3.)*norm2(N)*dt0
+       
+        h = haveps(epsp2)
+        if (theta >= 0 .and. theta <= theta0 ) then
+            alpha = 1-c1*sqrt(sigma0/G)-c2*macauley(h)/G
+            else if (theta > theta0 .and. theta < pi/2) then
+        if (modelnum == 1) then 
+            alpha = (1-c1*sqrt(sigma0/G)-c2*macauley(h)/G)*((pi/2-theta)/(pi/2-theta0))
+        else if (modelnum == 2) then
+            alpha = (1-c1*sqrt(sigma0/G)-c2*macauley(h)/G)*Tan(c3*(theta-theta0)+theta0)/tan(theta)
+        end if
+        !alpha = (pi/2-theta)/(pi/2-theta0)
+    else if ( theta >= pi/2 .and. theta < pi ) then
+        alpha = 0
+        write(*,*) D
+        write(*,*) theta
+        write(*,*) tag1
+        write(*,*) N
+        write(*,*) 'Warning unloading 1'
+        stop
+    end if   
+
+        call eqvstress(tag1,sigmacheck)
+    feps = sigmacheck -gaveps(epsp2)
+    Dp = lambdadot*N+alpha*Dtan
+    De = D-lambdadot*N-alpha*Dtan
+    hvec = tens2vec(tag1)-tens2vec(tagcheck) + matmul(Chook,(/ Dp(1,1), Dp(2,2),Dp(3,3),2*Dp(2,3), 2*Dp(1,3),2*Dp(1,2) /))*dt0
+    !feps = epsp2 - epsp - lambdadot*sqrt(2./3.)*norm2(N)*dt0
+    !write(*,*) hvec
+    
+    newtvec(1:6) = hvec
+    newtvec(7) = feps
+    !write(*,*) newtvec
+    !!!! Calculate jacobian
+    
+    do i = 1,7
+        tagint = tag1
+        epsp2 = epsp
+        
+        if (i < 7) then
+        if (pos1(i) /= pos2(i)) then 
+        tagint(pos1(i),pos2(i)) = tagint(pos1(i),pos2(i))+ dl
+        tagint(pos2(i),pos1(i)) = tagint(pos2(i),pos1(i))+ dl
+        else
+        tagint(pos1(i),pos2(i)) = tagint(pos1(i),pos2(i))+ dl
+        end if 
+                Call hoshfordnormal(tagint,N)
+                theta = acos(contract2(D-id*(D(1,1)+D(2,2)+D(3,3))/3.,N)/norm2(D-id*(D(1,1)+D(2,2)+D(3,3))/3.)/Norm2(N))
+    
+    
+                
+    
+                Nnorm = N/norm2(N)
+                        do p = 1,3
+                            do j = 1,3
+                                do k =1,3
+                                    do l = 1,3
+              T(p,j,k,l) = 1./2.*(kronecker(p,k)*kronecker(j,l)+kronecker(p,l)*kronecker(j,k))-1./3.*(id(p,j)*id(k,l)) &
+                                                    -Nnorm(p,j)*Nnorm(k,l)     
+                                    end do
+                                end do
+                            end do
+                        end do
+                    Dtan = 0
+                        do p = 1,3
+                            do j = 1,3
+                                do k =1,3
+                                    do l = 1,3
+                                        Dtan(p,j) = Dtan(p,j)+ T(p,j,k,l)*Ddev(l,k)
+                                    end do
+                                end do
+                            end do
+                        end do
+                       
+            !lambdadot2 = contract2(N,vec2tens(matmul(Chook,tens2vec(D)))) &
+            !/(contract2(N,vec2tens(matmul(Chook,tens2vec(N))))+sqrt(2./3.)*norm2(N)*h2)
+                       ! feps2 = epsp2 - epsp - lambdadot2*sqrt(2./3.)*norm2(N)*dt0
+                        epsp2 = epsp + lambdadot*sqrt(2./3.)*norm2(N)*dt0
+                       
+
+                        if (theta >= 0 .and. theta <= theta0 ) then
+                            alpha = 1-c1*sqrt(gaveps(epsp2)/G)-c2*macauley(h)/G
+                        else if (theta > theta0 .and. theta < pi/2) then
+                                    if (modelnum == 1) then 
+                      alpha = (1-c1*sqrt(gaveps(epsp2)/G)-c2*macauley(haveps(epsp2))/G)*((pi/2-theta)/(pi/2-theta0))
+                                    else if (modelnum == 2) then
+                                        alpha = (1-c1*sqrt(gaveps(epsp2)/G)-c2*macauley(haveps(epsp2))/G)* &
+                                        tan(c3*(theta-theta0)+theta0)/tan(theta)
+                                    end if
+                        else if ( theta >= pi/2 .and. theta < pi ) then
+                                    alpha = 0
+                                    write(*,*) 'Warning unloading 2'
+                                    stop
+                        end if   
+
+
+           call eqvstress(tagint,sigmacheck)
+    feps2 = sigmacheck -gaveps(epsp2)
+    Dp = lambdadot*N+alpha*Dtan
+    De = D-lambdadot*N-alpha*Dtan
+    hvec2 = tens2vec(tagint)-tens2vec(tagcheck) + matmul(Chook,(/Dp(1,1), Dp(2,2),Dp(3,3),2*Dp(2,3), 2*Dp(1,3),2*Dp(1,2) /))*dt0
+            do k = 1,7
+                if (k < 7) then
+                    jacobi(k,i) = (hvec2(k)-hvec(k))/dl
+                else 
+                    jacobi(k,i) = (feps2-feps)/dl 
+                end if
+            end do
+    
+            else 
+                Call hoshfordnormal(tag1,N)
+                theta = acos(contract2(D-id*(D(1,1)+D(2,2)+D(3,3))/3.,N)/norm2(D-id*(D(1,1)+D(2,2)+D(3,3))/3.)/Norm2(N))
+                
+                
+                
+                Nnorm = N/norm2(N)
+                        do p = 1,3
+                            do j = 1,3
+                                do k =1,3
+                                    do l = 1,3
+                        T(p,j,k,l) = 1./2.*(kronecker(p,k)*kronecker(j,l)+kronecker(p,l)*kronecker(j,k))-1./3.*(id(p,j)*id(k,l)) &
+                        -Nnorm(p,j)*Nnorm(k,l)     
+                                    end do
+                                end do
+                            end do
+                        end do
+                    Dtan = 0
+                        do p = 1,3
+                            do j = 1,3
+                                do k =1,3
+                                    do l = 1,3
+                                    Dtan(p,j) = Dtan(p,j)+ T(p,j,k,l)*Ddev(l,k)
+                                    end do
+                                end do
+                            end do
+                        end do
+                       ! h2 = haveps(epsp2+dl)
+           ! lambdadot2 = contract2(N,vec2tens(matmul(Chook,tens2vec(D)))) &
+           ! /(contract2(N,vec2tens(matmul(Chook,tens2vec(N))))+sqrt(2./3.)*norm2(N)*h2)
+            
+           ! epsp2 = epsp+lambdadot2*sqrt(2./3.)*norm2(N)*dt0
+    
+            epsp2 = epsp + (lambdadot+dl)*sqrt(2./3.)*norm2(N)*dt0
+       
+            if (theta >= 0 .and. theta <= theta0 ) then
+                alpha = 1-c1*sqrt(gaveps(epsp2)/G)-c2*macauley(haveps(epsp2))/G
+else if (theta > theta0 .and. theta < pi/2) then
+               if (modelnum == 1) then 
+                   alpha = (1-c1*sqrt(gaveps(epsp2)/G)-c2*macauley(haveps(epsp2))/G)*((pi/2-theta)/(pi/2-theta0))
+               else if (modelnum == 2) then
+                   alpha = (1-c1*sqrt(gaveps(epsp2)/G)-c2*macauley(haveps(epsp2))/G)*&
+                   tan(c3*(theta-theta0)+theta0)/tan(theta)
+               end if
+else if ( theta >= pi/2 .and. theta < pi ) then
+               alpha = 0
+               write(*,*) 'Warning unloading 3'
+               stop
+end if   
+
+
+
+
+            call eqvstress(tag1,sigmacheck)
+            feps2 = sigmacheck -gaveps(epsp2)
+            Dp = (lambdadot+dl)*N+alpha*Dtan
+            De = D-(lambdadot+dl)*N-alpha*Dtan
+    hvec2 = tens2vec(tag1)-tens2vec(tagcheck) + matmul(Chook,(/ Dp(1,1), Dp(2,2),Dp(3,3),2*Dp(2,3), 2*Dp(1,3),2*Dp(1,2) /))*dt0
+            do k = 1,7
+                if (k < 7) then
+                    jacobi(k,i) = (hvec2(k)-hvec(k))/dl
+                else
+                    jacobi(k,i) = (feps2-feps)/dl 
+                end if
+            end do
+        end if 
+    end do
+    solution = -newtvec
+        call dgesv(7,1,jacobi,7,IPIV,solution,7 , Info)
+       
+        tag1 = tag1+vec2tens(solution(1:6))
+        lambdadot = lambdadot+solution(7)
+    !write(*,*) solution
+        if (q > 10) then
+           ! write(*,*) 'not fully converged solution'
+           ! write(*,*) newtvec
+        end if
+        if (q > 15 .and. norm2(newtvec) < 1e-5) then
+            write(*,*) 'not fully converged solution'
+            exit 
+        end if
+        q = q+1
+    end do
+tag = tag1
+epsp = epsp2
+!call hoshfordnormal(tag,N)
+!Dp = lambdadot*N+alpha*Dtan
+end if 
+
+ ! call eqvstress(tag,sigma)
+ ! write(*,*) sigma,gaveps(epsp), sigma-gaveps(epsp)
+ !
+ ! write(*,*) dtag
+ ! write(*,*) 
+
+
+  return
+  end subroutine yoshi4

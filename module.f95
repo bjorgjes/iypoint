@@ -323,7 +323,7 @@ else if (theta > theta0 .and. theta < pi/2) then
     !alpha = (pi/2-theta)/(pi/2-theta0)
 else if ( theta >= pi/2 .and. theta < pi ) then
     alphacoeff = 0
-    write(*,*) 'Warning unloading'
+    write(*,*) 'Warning unloading' 
 end if   
 return
 end function alphacoeff
