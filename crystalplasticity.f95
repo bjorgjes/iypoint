@@ -32,9 +32,15 @@ else if (bryter == 8) then
 end if
 
 if (bcond == 1 .and. bryter == 5 .or. bryter == 6) then
+<<<<<<< HEAD
     write(filename,'("Dp_cp_",I2,"_",I3.3,".txt")') fid , k  
     open(unit=fid+200+k, file=filename, status='unknown')
     write(filename2,'("Dp_cp_ang",I2,"_",I3.3,".txt")') fid , k   
+=======
+    write(filename,'("Dp_cp_",I2,"_",I3,".txt")') fid , k  
+    open(unit=fid+200+k, file=filename, status='unknown')
+    write(filename2,'("Dp_cp_ang",I2,"_",I3,".txt")') fid , k   
+>>>>>>> 171f014913db34acb1e6d6d45658495127e26399
         open(unit=fid+400+k, file=filename2, status='unknown')
     write(filenamea,'("alphacp_",I3.3,"_",I2,".txt")') k, 64  
     open(unit=fid+300+k, file=filenamea, status='unknown')
@@ -85,8 +91,9 @@ end if
     if (bryter == 4 .and. bry == 1) then 
         bryter = 8
     end if
-    close(unit=fid+60)
-    close(unit=fid+20)
+    !close(unit=fid+600)
+    !close(unit=fid+400)
+    close(unit = fid+300)
 end subroutine newton
 
 
@@ -945,7 +952,7 @@ subroutine timestep(Tag, Dp, La, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,S0
     Tagcint(1:3,1:3,j) = matmul(transpose(R(1:3,1:3,j)),matmul(T1,R(1:3,1:3,j)))
     Tag = Tag+Tagcint(1:3,1:3,j)/nlines
     !Cep = Cep +Cepag/nlines
-    
+    d
 end do grains 
 
 end subroutine timestep
@@ -1504,7 +1511,6 @@ real(8), dimension(3,3) :: tag, D, Dp, N, Nnorm, Dtan,DtanNorm, Ddev, Dptan
 real(8), dimension(3,3,3,3) :: T, P
 integer :: i,j,k,l, fid
 real(8) :: alpha , theta
-
 
 
 Call hoshfordnormal(tag,N)

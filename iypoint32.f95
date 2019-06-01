@@ -244,7 +244,7 @@ subroutine steepestdecent(solution, initial)
     integer :: k, i , counter
     
 solution = initial
-dl = 0.00001
+dl = 0.000001
     !!! calculate gradient 
 error = modelerror(solution(1),solution(2),solution(3), solution(4))
 write(*,*) error
@@ -256,9 +256,9 @@ if ( norm2(gradient) < 0.000000001 ) then
   !  exit
 end if
 gradient = 0
-call OMP_SET_NUM_THREADS(4)
-!$OMP PARALLEL PRIVATE(c1,c2,c3, theta0,tempsol)
-!$OMP DO
+!call OMP_SET_NUM_THREADS(1)
+!!$OMP PARALLEL PRIVATE(c1,c2,c3, theta0,tempsol)
+!!$OMP DO
 do k = 1,4
     tempsol= solution
     !write(*,*) k
@@ -271,8 +271,8 @@ if (k == 3 .and. tempsol(k) > 1) then
    gradient(k) = (modelerror(tempsol(1), tempsol(2), tempsol(3), tempsol(4))-error)/dl
    end if
 end do
-!$OMP END DO NOWAIT
-!$OMP END PARALLEL
+!!$OMP END DO NOWAIT
+!!$OMP END PARALLEL
 write(*,*) 'gradient'
 write(*,*) gradient
 !!!! Perform line search
