@@ -13,10 +13,10 @@ integer  :: bryter
 real(8) , dimension(3,3,nlines)  :: Fp0i,F0i
 real(8),  dimension(nlines,12) :: S0i
 real(8), dimension(6) :: propconst
-character*15 :: filename
-character*18 :: filename2
+character*16 :: filename
+character*19 :: filename2
 character*19 :: filenamea
-character*11 :: utskrift1
+character*12 :: utskrift1
 bry = 0
 if (bryter == 4) then 
     bry = 1
@@ -32,21 +32,21 @@ else if (bryter == 8) then
 end if
 
 if (bcond == 1 .and. bryter == 5 .or. bryter == 6) then
-    write(filename,'("Dp_cp_",I2,"_",I2,".txt")') fid , k  
+    write(filename,'("Dp_cp_",I2,"_",I3.3,".txt")') fid , k  
     open(unit=fid+200+k, file=filename, status='unknown')
-    write(filename2,'("Dp_cp_ang",I2,"_",I2,".txt")') fid , k   
+    write(filename2,'("Dp_cp_ang",I2,"_",I3.3,".txt")') fid , k   
         open(unit=fid+400+k, file=filename2, status='unknown')
-    write(filenamea,'("alphacp_",I3,"_",I2,".txt")') k, 64  
+    write(filenamea,'("alphacp_",I3.3,"_",I2,".txt")') k, 64  
     open(unit=fid+300+k, file=filenamea, status='unknown')
 
     else if (bcond == 2 .and. bryter == 5 .or. bryter == 6)  then 
-    write(filename,'("Dp_cp_",I2,"_",I2,".txt")') fid , 99 
+    write(filename,'("Dp_cp_",I2,"_",I3.3,".txt")') fid , 99 
     open(unit=fid+200+k, file=filename, status='unknown')
-    write(filename2,'("Dp_cp_ang",I2,"_",I2,".txt")') fid , 99 
+    write(filename2,'("Dp_cp_ang",I2,"_",I3.3,".txt")') fid , 99 
     open(unit=fid+400+k, file=filename2, status='unknown')
  end if
 fid = fid+k
-write(utskrift1,'("start ",I2," cp")') k  
+write(utskrift1,'("start ",I3.3," cp")') k  
 
 teller = 0
 
@@ -98,7 +98,7 @@ subroutine taylor(La,Tag,bryter,bcond,F0i,Fp0i,S0i,pw,cpstrain,Dp,propconst,fid)
     !Declear all variables
  
     real(8) :: phi1, Phi, phi2,dt0, gammatot,pw,gammatoti,gammaskrank,dot, dl,epsp
-    real(8) , dimension(3,3)  :: grad,T0 , Dp, Lb, Tagb, La0,Dp2, Lc, tagcc
+    real(8) , dimension(3,3)  :: grad,T0 , Dp, Lb, Tagb, La0,Dp2, Lc, tagcc, Dp3
     real(8), dimension(3,3,3,3) :: Cep                    
     real(8) , dimension(3,3) :: La , Lcp
     real(8) , dimension(3,3), intent(out)  :: Tag
@@ -116,8 +116,8 @@ subroutine taylor(La,Tag,bryter,bcond,F0i,Fp0i,S0i,pw,cpstrain,Dp,propconst,fid)
     real(8), dimension(6) :: propconst
     ! The percision of the plastic work given in relative fraction
     pwpercision = 0.00000001
-    convcriterion = 0.0000000000001
-    centraldiff = 2
+    convcriterion = 0.00000000001
+    centraldiff = 1
     proximity = 0
     !Timeincrement
     !dt0 = 0.0000001
@@ -222,7 +222,7 @@ end if
  
     secit = 0
     dt0 = dt
-    switch = 1
+    switch = 0
     if (bryter == 3) then
         goto 13
     end if
@@ -346,7 +346,7 @@ case (2)
          minl = minloc(sigma2, DIM = 1)
          maxl = maxloc(sigma2, DIM = 1)
          if (abs(sigma2(minl)) < convcriterion .and. abs(sigma2(maxl)) < convcriterion) then
-            !write(*,*)  sigma2 , norm2(Lc), epspi
+            write(*,*)  sigma2 , norm2(Lc), epspi
             exit boundary2
          end if 
      
@@ -503,10 +503,14 @@ epspi = epsp+norm2(Dp)*sqrt(2./3.)*dt0
             write(8,*) dot/norm2(Dp2)/norm2(Dp)
             write(8,*)
             write(8,*)
-            !call hoshfordnormal(tag,grad)
-            call grad_phi(grad,tag,9.d0)
+            call hoshfordnormal(tag,grad)
+            !call grad_phi(grad,tag,9.d0)
+            Dp3 = 0
+            Dp3(1,1) = Dp(1,1)
+            Dp3(3,3) = Dp(3,3)
+            Dp3(2,2) = Dp(2,2)
             write(fid+400,*) acos(contract2(La,Dp)/norm2(La)/norm2(Dp))*180/pi, &
-                            acos(contract2(grad,Dp)/norm2(grad)/norm2(Dp))*180/pi, epsp
+                            acos(contract2(grad,Dp3)/norm2(grad)/norm2(Dp3))*180/pi, epsp
 
             write(fid+200,*) Tag(1,1), Tag(2,2), Dp(1,1)/ norm2(La),Dp(2,2)/norm2(La)
             write(14,*) Tag(1,1), Tag(2,2), Dp2(1,1) /sqrt( Dp2(1,1)**2+Dp2(2,2)**2), Dp2(2,2)/sqrt(Dp2(1,1)**2+Dp2(2,2)**2)
@@ -527,7 +531,7 @@ epspi = epsp+norm2(Dp)*sqrt(2./3.)*dt0
           
             write(13,*) Dp
             write(13,*) La-id*(La(1,1)+La(2,2)+La(3,3))/3
-         
+            write(*,*) Dp
            ! call hoshfordnormal(tag,grad)
            ! call contract2(Dp,grad,dot)
            ! write(*,*) dot/norm2(Dp)/norm2(grad)
@@ -548,8 +552,8 @@ epspi = epsp+norm2(Dp)*sqrt(2./3.)*dt0
             else
             dt0 = (pw-epsp)*dt0/(epspi-epsp)
             end if
-            write(*,*) dt0, sigma, gammatoti-pw
-            switch = switch +1
+            !write(*,*) dt0, sigma, gammatoti-pw
+            !switch = switch +1
             secit = secit +1
             if (secit > 15) then 
                 exit iter
@@ -565,7 +569,7 @@ epspi = epsp+norm2(Dp)*sqrt(2./3.)*dt0
                 proximity = 1
             dt0 = dt0*0.75
             !dt0 = (pw-gammatot)*dt0/(gammatoti-gammatot) 
-            switch = switch +1
+            !switch = switch +1
             secit = secit +1
             if (secit > 20) then 
                 exit iter
@@ -591,6 +595,7 @@ epspi = epsp+norm2(Dp)*sqrt(2./3.)*dt0
                 if (switch == 0)  then
                     write(13,*) Dp
                     write(13,*) La-id*(La(1,1)+La(2,2)+La(3,3))/3
+                    switch = switch+1
                 end if
 
                 call alphacp(La,Dp,tag,fid)
@@ -626,13 +631,18 @@ epspi = epsp+norm2(Dp)*sqrt(2./3.)*dt0
             write(8,*) dot/norm2(Dp2)/norm2(Dp)
             write(8,*)
             write(8,*)
-            !call hoshfordnormal(tag,grad)
-            call grad_phi(grad,tag,9.d0)
-            !write(fid+400,*) acos(contract2(La,Dp)/norm2(La)/norm2(Dp))*180/pi, &
-             !               acos(contract2(grad,Dp)/norm2(grad)/norm2(Dp))*180/pi, epsp
+            call hoshfordnormal(tag,grad)
+            !call grad_phi(grad,tag,9.d0)
+            Dp3 = 0
+            Dp3(1,1) = Dp(1,1)
+            Dp3(3,3) = Dp(3,3)
+            Dp3(2,2) = Dp(2,2)
+
+            write(fid+400,*) acos(contract2(La,Dp)/norm2(La)/norm2(Dp))*180/pi, &
+                            acos(contract2(grad,Dp3)/norm2(grad)/norm2(Dp3))*180/pi, epsp
 
 
-            !write(fid+200,*) Tag(1,1), Tag(2,2), Dp(1,1)/norm2(La) ,Dp(2,2)/norm2(La)
+            write(fid+200,*) Tag(1,1), Tag(2,2), Dp(1,1)/norm2(La) ,Dp(2,2)/norm2(La)
             !write(14,*) Tag(1,1), Tag(2,2), Dp2(1,1) /sqrt( Dp2(1,1)**2+Dp2(2,2)**2), Dp2(2,2)/sqrt(Dp2(1,1)**2+Dp2(2,2)**2)
             write(16,*) Tag(1,1), Tag(2,2), Grad(1,1)/sqrt(Grad(1,1)**2+Grad(2,2)**2),Grad(2,2)/sqrt(Grad(1,1)**2+Grad(2,2)**2)
         
@@ -641,15 +651,15 @@ epspi = epsp+norm2(Dp)*sqrt(2./3.)*dt0
         
         if (pw /= 0 .and. abs((epsp -pw)/pw)<= pwpercision) then
             call grad_phi(grad,tag,9.d0)
-            write(fid+400,*) acos(contract2(La,Dp)/norm2(La)/norm2(Dp))*180/pi, &
-                            acos(contract2(grad,Dp)/norm2(grad)/norm2(Dp))*180/pi, epsp
+            !write(fid+400,*) acos(contract2(La,Dp)/norm2(La)/norm2(Dp))*180/pi, &
+             !               acos(contract2(grad,Dp)/norm2(grad)/norm2(Dp))*180/pi, epsp
 
 
-            write(fid+200,*) Tag(1,1), Tag(2,2), Dp(1,1)/norm2(La) ,Dp(2,2)/norm2(La)
+            !write(fid+200,*) Tag(1,1), Tag(2,2), Dp(1,1)/norm2(La) ,Dp(2,2)/norm2(La)
             write(12,*) tag, epsp
-            !Fp0i = Fp0
-            !F0i  = F0
-            !S0i = S0 
+            Fp0i = Fp0
+            F0i  = F0
+            S0i = S0 
             cpstrain = epsp
             exit iter
         else if (pw == 0 .and. epsp <= pwpercision .and. epsp > 0) then
@@ -794,7 +804,7 @@ subroutine timestep(Tag, Dp, La, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,S0
         countera = countera+1
         end if 
     end do
-   Dpc = 1./2.*(Fp1 + transpose(Fp1))/dt0/nlines
+   !Dpc = 1./2.*(Fp1 + transpose(Fp1))/dt0/nlines
     Fp1 = matmul(id,Fp0(1:3,1:3,j))+ matmul(Fp1,Fp0(1:3,1:3,j))
     
     ! step 7, Check if determinant is 1, if not normalize
@@ -914,13 +924,13 @@ subroutine timestep(Tag, Dp, La, gammatot, gammatoti , Fp0, Fp0int, F0, F0int,S0
     do i = 1,12
         if (Active(i)) then 
             call slipsys(Schmid,m,n,i)
-           ! Dpc = Dpc+tautr(i)/abs(tautr(i))*x(countera)*1./2.*(Schmid+transpose(schmid))/dt0/nlines
-            Lcpc = Lcpc+tautr(i)/abs(tautr(i))*x(countera)*Schmid/dt0/nlines
+            Dpc = Dpc+tautr(i)/abs(tautr(i))*x(countera)*1./2.*(Schmid+transpose(schmid))/dt0/nlines
+            
         countera = countera+1
         end if 
     end do
     Dpc =  matmul(Rtest,matmul(Dpc,transpose(Rtest)))
-    Lcpc =  matmul(Rtest,matmul(Dpc,transpose(Rtest)))
+    
     !Dpc = matmul(Fp1inv,(Fp1-Fp0(1:3,1:3,j)))/dt0/nlines
     Lcp = Lcp +  matmul(transpose(R(1:3,1:3,j)),matmul(Lcpc,R(1:3,1:3,j)))
     Dp = Dp + matmul(transpose(R(1:3,1:3,j)),matmul(Dpc,R(1:3,1:3,j)))

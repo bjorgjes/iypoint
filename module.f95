@@ -24,12 +24,12 @@ module global
         pi = 4.D0*DATAN(1.D0)
         dt = 0.0001
         dgamma = 0.000000001
-        hardening = .false.
+        hardening = .true.
      !!!! parameters for constitutive model
         c1 = 0.3 
         c2 = 0.5
         c3 = 0.4
-        theta0 = pi/18
+        theta0 = pi/36
 
     !Create identity matrix
     id = 0
@@ -273,8 +273,8 @@ function gaveps(epsp)
     sigma0 = 49.103558072070918    
     !n = 0.645430868
     !eps0 =  0.016142686
-    n = 0.0027724527
-    eps0 = 0.002438999583505
+    n = 0.5386432476
+    eps0 = 0.011729921482993
     if (hardening) then
     gaveps = sigma0*(1+epsp/eps0)**n
     else if (.not. hardening) then 
@@ -289,8 +289,8 @@ function haveps(epsp)
     sigma0 = 49.103558072070918    
     !n = 0.645430868
     !eps0 =  0.016142686
-    n = 0.0027724527
-    eps0 = 0.002438999583505
+    n = 0.5386432476
+    eps0 = 0.011729921482993
     
     if (hardening) then
     haveps = n*sigma0*(1+epsp/eps0)**(n-1)/eps0

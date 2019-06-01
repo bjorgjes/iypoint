@@ -15,7 +15,7 @@ module constitutive
         implicit none
 
         real(8), dimension(3,3) :: tag, tagi
-        real(8) :: epsp, epspi, strain
+        real(8) :: epsp, epspi, strain, plasticenergy, plasticenergy2, eqsigma, plasticenergyi
         real(8) , dimension(4)  :: sigma, offdl
         real(8), dimension(5) ::  offdl2, sigma2, IPIV2
         integer, dimension(6) :: pos1, pos2
@@ -30,20 +30,21 @@ module constitutive
         real(8) , dimension(5,5)  :: Jacob2, Jinv2
         real(8) :: pwpercision
         logical :: consistent, consistentcontroll
-        character*16 :: filename
-        character*19 :: filename2
+        character*17 :: filename
+        character*20 :: filename2
         gammaskrank = epsp
         pwpercision = 0.0000000001
         secit = 0
-        
+        plasticenergy = 0
+        plasticenergy2 = 0
         dl = 0.0000001
         switch = 0
         consistent = .false.
         consistentcontroll = .false.
         if (bcond == 1 .and. bryter == 5 .or. bryter == 6) then
-        write(filename,'("Dp_con_",I2,"_",I2,".txt")') fid , l   
+        write(filename,'("Dp_con_",I2,"_",I3,".txt")') fid , l   
         open(unit=fid+l+600, file=filename, status='unknown')
-        write(filename2,'("Dp_con_ang",I2,"_",I2,".txt")') fid , l   
+        write(filename2,'("Dp_con_ang",I2,"_",I3,".txt")') fid , l   
         open(unit=fid+800+l, file=filename2, status='unknown')
         else   
         write(filename,'("Dp_con_",I2,"_",I2,".txt")') fid , 99 
@@ -258,31 +259,34 @@ case (2)
    end do boundary2
 end select
 
-if (bryter == 1 .or. bryter == 5 .or. bryter == 4) then
+plasticenergyi = plasticenergyi + contract2(Dp,tag)*dt
+
+bryt: if (bryter == 1 .or. bryter == 5 .or. bryter == 4) then
        
-        
-       
-    if (epspi > strain .and. abs((epspi - strain)/strain) > pwpercision) then
-        if (strain == 0) then
-            dt0 = dt0/2
-        else
-        dt0 = (strain-epsp)*dt0/(epspi-epsp)*0.7
-        end if
-        secit = secit +1
-        !write(*,*) 'Tidsskritt redusert'
-        !write(*,*) dt0, epspi, epsp
-        !write(*,*)
-        switch = switch + 1
-        if (secit > 30) then 
-            write(*,*) epspi
-            write(*,*) 'early exit'
-            exit iter
-        end if 
-        cycle iter
-    end if 
+   if (epspi > strain .and. abs((epspi - strain)/strain) > pwpercision) then
+       if (strain == 0) then
+           dt0 = dt0/2
+       else
+       dt0 = (strain-epsp)*dt0/(epspi-epsp)*0.7
+       end if
+       secit = secit +1
+       !write(*,*) 'Tidsskritt redusert'
+       !write(*,*) dt0, epspi, epsp
+       !write(*,*)
+       switch = switch + 1
+       if (secit > 30) then 
+           write(*,*) epspi
+           write(*,*) 'early exit'
+           exit iter
+       end if 
+       cycle iter
+   end if 
     
     tag = tagi
    ! write(*,*) epspi, nit, dt0, l, consistentcontroll
+    plasticenergy = plasticenergyi
+    call eqvstress(tag,eqsigma)
+    plasticenergy2 = plasticenergy2 + epspi*eqsigma**dt
     epsp = epspi
     !write(*,*) epsp
     if (bryter == 5) then
@@ -302,48 +306,53 @@ if (bryter == 1 .or. bryter == 5 .or. bryter == 4) then
         end if
     end if 
 
-    if (abs((epsp - strain)/strain) <= pwpercision) then
-        !call Yoshidamodel(tag,La,Dp)
-        write(18,*) Dp
-        write(18,*) La-id*(La(1,1)+La(2,2)+La(3,3))/3
-       exit iter
-    end if
+   
+   if (abs((epsp - strain)/strain) <= pwpercision) then
+       !call Yoshidamodel(tag,La,Dp)
+       write(*,*) plasticenergy
+       write(18,*) Dp
+       write(18,*) La-id*(La(1,1)+La(2,2)+La(3,3))/3
+      exit iter
+   end if
+
 
 else if (bryter == 2 .or. bryter == 6) then
     
-    if (strain /= 0) then
-    if (epspi > strain .and. abs((epspi - strain)/strain) > pwpercision) then
-        if (strain == 0) then
-            dt0 = dt0/2
-        else
-        dt0 = (strain-epsp)*dt0/(epspi-epsp)*0.5
-        end if
-        !write(*,*) dt0, sigma, epspi-strain
-       ! switch = switch +1
-        secit = secit +1
-        if (secit > 15) then 
-            exit iter
-        end if 
-        cycle iter
-    end if 
-    end if
 
+if (strain /= 0) then
+if (epspi > strain .and. abs((epspi - strain)/strain) > pwpercision) then
     if (strain == 0) then
-        if (epspi > strain .and. abs(epspi) > pwpercision) then
         dt0 = dt0/2
-        !dt0 = (pw-epsp)*dt0/(epspi-epsp) 
-        switch = switch +1
-        secit = secit +1
-        if (secit > 10) then 
-            exit iter
-        end if 
-        cycle iter
-        end if
+    else
+    dt0 = (strain-epsp)*dt0/(epspi-epsp)*0.5
     end if
-
+    !write(*,*) dt0, sigma, epspi-strain
+   ! switch = switch +1
+    secit = secit +1
+    if (secit > 15) then 
+        exit iter
+    end if 
+    cycle iter
+end if 
+end if
+if (strain == 0) then
+    if (epspi > strain .and. abs(epspi) > pwpercision) then
+    dt0 = dt0/2
+    !dt0 = (pw-epsp)*dt0/(epspi-epsp) 
+    switch = switch +1
+    secit = secit +1
+    if (secit > 10) then 
+        exit iter
+    end if 
+    cycle iter
+    end if
+end if
     tag = tagi
     epsp = epspi 
     ! write(*,*) epsp
+    plasticenergy = plasticenergy + contract2(Dp,tag)*dt
+    call eqvstress(tag,eqsigma)
+    plasticenergy2 = plasticenergy2 + epspi*eqsigma**dt
 
     if (bryter == 6) then
         if (epsp > gammaskrank) then
@@ -365,20 +374,29 @@ else if (bryter == 2 .or. bryter == 6) then
         
         end if
     end if 
-    
-    if (strain /= 0 .and. abs((epsp -strain)/strain)<= pwpercision) then
-        call hoshfordnormal(tag,N)
-        write(fid+800+l,*) acos(contract2(La,Dp)/norm2(La)/norm2(Dp))*180/pi, acos(contract2(N,Dp)/norm2(N)/norm2(Dp))*180/pi, epsp
-        write(fid+l+600,*) Tag(1,1), Tag(2,2) , Dp(1,1)/norm2(La), Dp(2,2)/norm2(La) 
-        exit iter
-    else if (strain == 0 .and. epsp <= pwpercision .and. epsp > 0) then
-       ! write(*,*) 'check'
-        exit iter
 
-    end if
-end if 
+!if (plasticenergy > strain) then 
+!    exit iter
+!end if
+
+    
+
+    
+ if (strain /= 0 .and. abs((epsp -strain)/strain)<= pwpercision) then
+     call hoshfordnormal(tag,N)
+     write(fid+800+l,*) acos(contract2(La,Dp)/norm2(La)/norm2(Dp))*180/pi, acos(contract2(N,Dp)/norm2(N)/norm2(Dp))*180/pi, epsp
+     write(fid+l+600,*) Tag(1,1), Tag(2,2) , Dp(1,1)/norm2(La), Dp(2,2)/norm2(La) 
+     exit iter
+ else if (strain == 0 .and. epsp <= pwpercision .and. epsp > 0) then
+    ! write(*,*) 'check'
+     exit iter
+ end if 
+
+
+end if   bryt 
 switch = switch +1 
-    end do iter
+end do iter
+    write(*,*) plasticenergy, plasticenergy2
 !close(unit=fid+l+600)
 !close(unit=fid+l+800)
 end subroutine constexpr
