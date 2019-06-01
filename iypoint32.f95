@@ -108,12 +108,12 @@ epsp1 = epsp
 cpstrain0 = cpstrain
 !write(*,*) cpstrain
 !dt = 0.000001
-part = 16
+part = 40
 bryter = 6
 call OMP_SET_NUM_THREADS(1)
 !$OMP PARALLEL PRIVATE(propconst,k, tag,epsp,fid,bryter,cpstrain, Fp0, F0, S0)
 !$OMP DO
-do k = 0,16
+do k = 0,40
     Fp0 = Fp01
     F0 = F01
     S0 = S01
@@ -130,7 +130,7 @@ cpstrain = cpstrain0
     !pw1 = 13.78587885955
     pw1 = 0.02
     bcond = 2
-    bryter = 6
+    bryter = 2
     fid = fid0
      !!propconst = (/0.0, 0.0, 0.0, 0.0, 22, 11/)
     propconst = (/0.d+0, 0.d+0, 0.d+0, 0.d+0, sin(2*pi*k/part), cos(2*pi*k/part)/)
@@ -138,6 +138,7 @@ cpstrain = cpstrain0
     !write(*,*) k
     call constexpr(k,16,bryter,bcond,pw1, tag, epsp,propconst,fid)
     write(3,*) tag(1,1), tag(2,2) , k
+    write(*,*) tag(1,1), tag(2,2) , k
 
     fid = fid0
     !call newton(k,128,bryter,bcond,F0,Fp0,S0,pw1,cpstrain,propconst,fid) !

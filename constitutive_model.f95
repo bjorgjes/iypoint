@@ -37,7 +37,7 @@ module constitutive
         secit = 0
         plasticenergy = 0
         plasticenergy2 = 0
-        dl = 0.0000001
+        dl = 0.000001
         switch = 0
         consistent = .false.
         consistentcontroll = .false.
@@ -46,7 +46,7 @@ module constitutive
         open(unit=fid+l+600, file=filename, status='unknown')
         write(filename2,'("Dp_con_ang",I2,"_",I3,".txt")') fid , l   
         open(unit=fid+800+l, file=filename2, status='unknown')
-        else   
+        else  if (bcond == 2 .and. bryter == 5 .or. bryter == 6) then 
         write(filename,'("Dp_con_",I2,"_",I2,".txt")') fid , 99 
         open(unit=fid+l+600, file=filename, status='unknown')
         write(filename2,'("Dp_con_ang",I2,"_",I2,".txt")') fid , 99
@@ -82,7 +82,7 @@ module constitutive
             La(3,2) = 0
             La(3,3) = -0.35*(La(1,1)+La(2,2))
             La = La/norm2(La)
-            
+           
             if ( abs(propconst(6)) >= abs(propconst(5))) then
                 pos1 = (/1, 1, 2, 3, 2, 1/)
                 pos2 =(/2, 3, 3, 3, 2, 1/)
@@ -90,7 +90,8 @@ module constitutive
             else if ( abs(propconst(6)) < abs(propconst(5))) then
                 pos1 = (/1, 1, 2, 3, 1, 2/)
                 pos2 =(/2, 3, 3, 3, 1, 2/)
-                propconst = (/0.d+1, 0.d+1, 0.d+1, 0.d+1, propconst(6), propconst(5)/)/propconst(5)
+                propconst = (/0.d+1, 0.d+1, 0.d+1, 0.d+1, propconst(6), propconst(5)/)
+                propconst = propconst/propconst(6)
             end if 
         
         end if   
@@ -180,7 +181,7 @@ case (2)
    boundary2: do while (nit < 100)
    !call sleep(2)
   ! call sleep(2)
-  ! write(*,*) 
+  !write(*,*) La
    !write(*,*) 
    tagi = tag
    epspi = epsp
@@ -201,8 +202,8 @@ case (2)
          if (abs(sigma2(minl)) < 0.00000000001 .and. abs(sigma2(maxl)) < 0.00000000001) then
           consistentcontroll = consistent
           !write(*,*) tagi(1,1), tagi(2,2), epspi,consistent, consistentcontroll
-            write(*,*) sigma2 , epspi
-       !      write(*,*) tagi(1,1), tagi(2,2)
+           !write(*,*) sigma2 , epspi
+             write(*,*) tagi(1,1), tagi(2,2)
             exit boundary2
          end if 
      do p = 1,5
@@ -244,7 +245,6 @@ case (2)
         Jinv2 = jacob2
         offdl2 = -sigma2
         call dgesv(5,1,Jinv2,5,IPIV2,offdl2, 5 , Info)
-      
         La(1,2) = La(1,2) + offdl2(1)
         La(2,1) = La(2,1) + offdl2(1)
         La(1,3) = La(1,3) + offdl2(2)
@@ -253,7 +253,7 @@ case (2)
         La(3,2) = La(3,2) + offdl2(3)
         La(3,3) = La(3,3) + offdl2(4)
         La(pos1(5),pos2(5)) = La(pos1(5),pos2(5)) + offdl2(5)
-      
+        
         nit = nit+1
 
    end do boundary2
@@ -879,7 +879,8 @@ end if
 end do
 !!! Check for unloading
 if (contract2(dtag,N) < 0 ) then
-   write(*,*) 'Unloading'
+  ! write(*,*) 'Unloading'
+   
 end if 
 !!! update stress and calculate equivalent stress
 tagcheck = tag+dtag*dt0
@@ -898,7 +899,7 @@ q = 0
 ! Initial guess, elastic predictor
 newtvec = 1
 Ddev = D - id*(D(1,1)+D(2,2)+D(3,3))/3    
-tag1 = tag
+tag1 = tagcheck
 epsp2 = epsp
 Call hoshfordnormal(tag1,N)
 !!! This equation is a rough estimate, believe voigt notation is not appropriate for the unsymmetric N
@@ -907,7 +908,7 @@ lambdadot = contract2(N,vec2tens(matmul(Chook,(/ D(1,1), D(2,2),D(3,3),2*D(2,3),
 
 
 !!! performs newton-raphson until solution is sufficently converged. 
-do while (norm2(newtvec) > 0.000000001)
+newtonraphson: do
 
 !!!! First calculate using current stress point+initial guess lambdadot, and checks if solution is sufficiently converged. 
 !!!! The same step is performed with the updated stress and lambdadot after the solution has been updated from the newton raphson iteration
@@ -947,6 +948,9 @@ hvec = tens2vec(tag1)-tens2vec(tagcheck) + &
 
 newtvec(1:6) = hvec
 newtvec(7) = feps
+if (norm2(newtvec) < 0.000001) then
+    exit newtonraphson
+end if
 !write(*,*) newtvec
 !!!! Calculate jacobian
 !!!  The six stress components are used, toghether with lambda dot
@@ -1054,17 +1058,14 @@ solution = -newtvec
     tag1 = tag1+vec2tens(solution(1:6))
     lambdadot = lambdadot+solution(7)
 !write(*,*) solution
-    if (q > 10) then
-       ! write(*,*) 'not fully converged solution'
-        !write(*,*) newtvec
-    end if
-    if (q > 15 ) then
+    
+    if (q > 20 ) then
         write(*,*) 'not fully converged solution'
         write(*,*) newtvec
         exit 
     end if
     q = q+1
-end do
+end do newtonraphson
 tag = tag1
 epsp = epsp2
 !call hoshfordnormal(tag,N)
