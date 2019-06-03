@@ -24,7 +24,7 @@ module global
         pi = 4.D0*DATAN(1.D0)
         dt = 0.0001
         dgamma = 0.000000001
-        hardening = .true.
+        hardening = .false.
      !!!! parameters for constitutive model
         c1 = 0.3 
         c2 = 0.5

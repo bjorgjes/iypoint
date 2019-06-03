@@ -76,22 +76,22 @@ epsp = 0
 !write(*,*) error
 fid = fid0
 !!propconst = (/0.0, 0.0, 0.0, 0.0, 22, 11/)
-propconst = (/0.0, 0.0, 0.0, 0.0, 0.0, 1.0/)
-bryter = 5
+propconst = (/0.0, 0.0, 0.0, 0.0, 1.0, 1.0/)
+bryter = 1
 k = 0
 cpstrain = 0
 pw1 = 0.02
 bcond = 2
 !call constexpr(k,16,bryter, bcond,pw1, tag, epsp, propconst,fid)
-!call newton(k,16,bryter,bcond,F0,Fp0,S0,pw1,cpstrain,propconst,fid)   
-!bryter = 6
-!pw1 = 0.02+0.18
-!bcond = 1
-!!call newton(4,16,bryter,bcond,F0,Fp0,S0,pw1,cpstrain,propconst,fid)  
+call newton(k,16,bryter,bcond,F0,Fp0,S0,pw1,cpstrain,propconst,fid)   
+bryter = 8
+pw1 = 0.021
+bcond = 1
+call newton(0,16,bryter,bcond,F0,Fp0,S0,pw1,cpstrain,propconst,fid)  
 !fid = fid0
-!Fp01 = Fp0
-!F01 = F0
-!S01 = S0
+Fp01 = Fp0
+F01 = F0
+S01 = S0
 !cpstrain0 = cpstrain
 !pw1 = 0.02+0.02+0.02
 !bcond = 1
@@ -107,13 +107,13 @@ tag1 = tag
 epsp1 = epsp
 cpstrain0 = cpstrain
 !write(*,*) cpstrain
-!dt = 0.000001
-part = 40
+dt = 0.0000001
+part = 10
 bryter = 6
 call OMP_SET_NUM_THREADS(1)
 !$OMP PARALLEL PRIVATE(propconst,k, tag,epsp,fid,bryter,cpstrain, Fp0, F0, S0)
 !$OMP DO
-do k = 0,40
+do k = 0,10
     Fp0 = Fp01
     F0 = F01
     S0 = S01
@@ -128,20 +128,21 @@ cpstrain = cpstrain0
     !pw1 = 0.02+0.0005*(k-5)
     !end if
     !pw1 = 13.78587885955
-    pw1 = 0.02
-    bcond = 2
+    !pw1 = 0.02
+    pw1 = 0.021+0.000001
+    bcond = 1
     bryter = 2
     fid = fid0
      !!propconst = (/0.0, 0.0, 0.0, 0.0, 22, 11/)
     propconst = (/0.d+0, 0.d+0, 0.d+0, 0.d+0, sin(2*pi*k/part), cos(2*pi*k/part)/)
     !write(*,*) 'start'
     !write(*,*) k
-    call constexpr(k,16,bryter,bcond,pw1, tag, epsp,propconst,fid)
-    write(3,*) tag(1,1), tag(2,2) , k
-    write(*,*) tag(1,1), tag(2,2) , k
+    !call constexpr(k,16,bryter,bcond,pw1, tag, epsp,propconst,fid)
+    !write(3,*) tag(1,1), tag(2,2) , k
+    !write(*,*) tag(1,1), tag(2,2) , k
 
     fid = fid0
-    !call newton(k,128,bryter,bcond,F0,Fp0,S0,pw1,cpstrain,propconst,fid) !
+    call newton(k,10,bryter,bcond,F0,Fp0,S0,pw1,cpstrain,propconst,fid) !
     !tag1 = tag
     !epsp1 = epsp
     !cpstrain0 = cpstrain
